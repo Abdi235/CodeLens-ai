@@ -1,0 +1,50 @@
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: secureai
+      POSTGRES_USER: secureai
+      POSTGRES_PASSWORD: secureai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secureai -d secureai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: secureai
+      DB_USER: secureai
+      DB_PASSWORD: secureai
+      AI_SERVICE_URL: http://ai-service:8000
+      JWT_SECRET: SecureAIComposeSecretKeyMustBeLongEnoughForHS256Algorithms!!
+    depends_on:
+      database:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
