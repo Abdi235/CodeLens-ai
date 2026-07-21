@@ -49,7 +49,7 @@ export function ProjectsPage() {
           className="rounded-lg border border-slate-300 px-3 py-2"
         />
         <input
-          hint: leave repository URL empty to scan bundled samples/
+          placeholder="Repository URL (optional — empty uses samples/)"
           value={repositoryUrl}
           onChange={(e) => setRepositoryUrl(e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2"

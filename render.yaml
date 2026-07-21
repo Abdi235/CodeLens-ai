@@ -1,0 +1,80 @@
+# SecureAI on Render
+# Dashboard: New → Blueprint → connect https://github.com/Abdi235/SecureAI
+
+databases:
+  - name: secureai-db
+    plan: free
+    databaseName: secureai
+    user: secureai
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: secureai-ai
+    runtime: docker
+    plan: free
+    dockerfilePath: ./ai-service/Dockerfile
+    dockerContext: ./ai-service
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+  - type: web
+    name: secureai-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_HOST
+        fromDatabase:
+          name: secureai-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: secureai-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: secureai-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: secureai-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: secureai-db
+          property: password
+      - key: AI_SERVICE_URL
+        fromService:
+          name: secureai-ai
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: WORKSPACE_DIR
+        value: /tmp/secureai-workspace
+
+  - type: web
+    name: secureai-web
+    runtime: static
+    plan: free
+    buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: secureai-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL

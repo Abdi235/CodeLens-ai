@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { api, getToken } from '../lib/api'
+import { api, API_BASE, getToken } from '../lib/api'
 
 type Project = { id: number; name: string; repositoryUrl?: string; createdAt: string }
 type Scan = {
@@ -74,7 +74,7 @@ export function ProjectDetailPage() {
       const token = getToken()
       const body = new FormData()
       body.append('file', file)
-      const res = await fetch(`/api/projects/${projectId}/scan/upload`, {
+      const res = await fetch(`${API_BASE}/api/projects/${projectId}/scan/upload`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body,

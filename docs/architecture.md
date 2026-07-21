@@ -20,4 +20,4 @@
 
 ## Status
 
-Weeks 1–4 implemented in-repo: async scanning, AI layer, CI, Docker, AWS guide.
+Weeks 1–4 implemented in-repo: async scanning, AI layer, CI, Docker, **Render** deploy blueprint (`render.yaml`).

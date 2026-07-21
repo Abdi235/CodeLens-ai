@@ -1,5 +1,8 @@
 const TOKEN_KEY = 'secureai_token'
 
+/** Empty in local/dev (Vite proxy). Set VITE_API_URL on Render to the API service URL. */
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+
 export type AuthUser = {
   email: string
   role: string
@@ -33,10 +36,12 @@ export function getStoredUser(): { email: string; role: string } | null {
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken()
   const headers = new Headers(options.headers)
-  headers.set('Content-Type', 'application/json')
+  if (!(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
-  const res = await fetch(path, { ...options, headers })
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (!res.ok) {
     let message = `Request failed (${res.status})`
     try {

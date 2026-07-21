@@ -107,9 +107,19 @@ Tracked by the AI service (`GET /metrics` or `/api/metrics/ai`):
 - **Week 1** ✅ Auth, projects, React dashboard
 - **Week 2** ✅ Static analysis engine, async scans, uploads, sample vulnerable repos
 - **Week 3** ✅ FastAPI explain/fix + OpenAI optional + metrics
-- **Week 4** ✅ Docker Compose, GitHub Actions CI, AWS deployment guide
+- **Week 4** ✅ Docker Compose, GitHub Actions CI, **Render** deployment
 
-## Docker
+## Deploy on Render
+
+Use the Blueprint in `render.yaml`:
+
+1. [Render Dashboard](https://dashboard.render.com/) → **New** → **Blueprint**
+2. Select `Abdi235/SecureAI`
+3. Deploy (Postgres + AI + API + static frontend)
+
+Full steps: [docs/render-deployment.md](docs/render-deployment.md)
+
+## Docker (local)
 
 ```bash
 docker compose up --build
@@ -118,4 +128,4 @@ docker compose up --build
 ## Docs
 
 - [Architecture](docs/architecture.md)
-- [AWS deployment](docs/aws-deployment.md)
+- [Render deployment](docs/render-deployment.md)

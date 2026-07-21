@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -71,12 +72,13 @@ public class WorkspaceService {
     }
 
     public Path copySamples(Path destination) throws IOException {
-        Path samples = Path.of("samples").toAbsolutePath().normalize();
-        if (!Files.exists(samples)) {
-            // When running from backend/, samples live one level up
-            samples = Path.of("..", "samples").toAbsolutePath().normalize();
-        }
-        if (!Files.exists(samples)) {
+        List<Path> candidates = List.of(
+                Path.of("samples").toAbsolutePath().normalize(),
+                Path.of("..", "samples").toAbsolutePath().normalize(),
+                Path.of("/app/samples")
+        );
+        Path samples = candidates.stream().filter(Files::exists).findFirst().orElse(null);
+        if (samples == null) {
             throw new IllegalStateException("Sample vulnerable projects not found. Set repository URL or place samples/ at repo root.");
         }
         copyDirectory(samples, destination);

@@ -16,7 +16,9 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8080:8080"
     environment:
@@ -28,6 +30,7 @@ services:
       DB_PASSWORD: secureai
       AI_SERVICE_URL: http://ai-service:8000
       JWT_SECRET: SecureAIComposeSecretKeyMustBeLongEnoughForHS256Algorithms!!
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
     depends_on:
       database:
         condition: service_healthy
