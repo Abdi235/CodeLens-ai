@@ -10,5 +10,6 @@ public record ScanResponse(
         ScanStatus status,
         Instant startedAt,
         Instant completedAt,
-        Integer vulnerabilityCount
+        Integer vulnerabilityCount,
+        String errorMessage
 ) {}

@@ -8,16 +8,17 @@ import com.secureai.model.*;
 import com.secureai.repository.ScanRepository;
 import com.secureai.repository.VulnerabilityRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
-/**
- * Week 1 stub: creates a completed scan with a sample vulnerability.
- * Week 2 will replace this with Semgrep integration.
- */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ScanService {
@@ -26,35 +27,43 @@ public class ScanService {
     private final VulnerabilityRepository vulnerabilityRepository;
     private final ProjectService projectService;
     private final CurrentUserService currentUserService;
+    private final AiServiceClient aiServiceClient;
+    private final ScanJobRunner scanJobRunner;
 
     @Transactional
     public ScanResponse startScan(Long projectId) {
         Project project = projectService.requireOwnedProject(projectId);
-
-        Scan scan = Scan.builder()
+        Scan scan = scanRepository.save(Scan.builder()
                 .project(project)
-                .status(ScanStatus.RUNNING)
+                .status(ScanStatus.PENDING)
                 .startedAt(Instant.now())
-                .build();
-        scan = scanRepository.save(scan);
+                .vulnerabilityCount(0)
+                .build());
+        scanJobRunner.runRepositoryScan(scan.getId());
+        return toScanResponse(scan);
+    }
 
-        // Placeholder finding until Semgrep is wired in Week 2
-        Vulnerability sample = Vulnerability.builder()
-                .scan(scan)
-                .severity(Severity.HIGH)
-                .type("SQL Injection")
-                .fileLocation("src/main/java/example/UserController.java")
-                .lineNumber(42)
-                .description("User input concatenated into SQL query without parameterization.")
-                .recommendation("Use PreparedStatement or a parameterized ORM query.")
-                .build();
-        vulnerabilityRepository.save(sample);
-
-        scan.setStatus(ScanStatus.COMPLETED);
-        scan.setCompletedAt(Instant.now());
-        scan.setVulnerabilityCount(1);
-        scan = scanRepository.save(scan);
-
+    @Transactional
+    public ScanResponse startScanFromUpload(Long projectId, MultipartFile file) {
+        Project project = projectService.requireOwnedProject(projectId);
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Upload file is required");
+        }
+        Scan scan = scanRepository.save(Scan.builder()
+                .project(project)
+                .status(ScanStatus.PENDING)
+                .startedAt(Instant.now())
+                .vulnerabilityCount(0)
+                .build());
+        try {
+            scanJobRunner.runUploadScan(scan.getId(), file.getBytes(), file.getOriginalFilename());
+        } catch (Exception e) {
+            scan.setStatus(ScanStatus.FAILED);
+            scan.setErrorMessage(e.getMessage());
+            scan.setCompletedAt(Instant.now());
+            scanRepository.save(scan);
+            throw new IllegalArgumentException("Failed to read upload: " + e.getMessage());
+        }
         return toScanResponse(scan);
     }
 
@@ -91,6 +100,17 @@ public class ScanService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public VulnerabilityResponse getVulnerability(Long id) {
+        User user = currentUserService.requireCurrentUser();
+        Vulnerability vuln = vulnerabilityRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Vulnerability not found"));
+        if (!vuln.getScan().getProject().getUser().getId().equals(user.getId())) {
+            throw new IllegalArgumentException("Vulnerability not found");
+        }
+        return toVulnerabilityResponse(vuln);
+    }
+
     @Transactional
     public FixGenerateResponse generateFix(FixGenerateRequest request) {
         User user = currentUserService.requireCurrentUser();
@@ -103,24 +123,74 @@ public class ScanService {
 
         String before = request.codeSnippet() != null && !request.codeSnippet().isBlank()
                 ? request.codeSnippet()
-                : "statement.execute(query);";
+                : (vuln.getDescription() != null ? vuln.getDescription() : vuln.getType());
 
-        String after = """
-                PreparedStatement stmt = connection.prepareStatement(
-                    "SELECT * FROM users WHERE id = ?"
-                );
-                stmt.setLong(1, userId);
-                ResultSet rs = stmt.executeQuery();
-                """;
+        String language = inferLanguage(vuln.getFileLocation());
+        String after;
+        String explanation;
 
-        String explanation = "Replace string-concatenated SQL with a parameterized PreparedStatement "
-                + "so user input cannot alter query structure.";
+        try {
+            Map<String, Object> fix = aiServiceClient.generateFix(vuln.getType(), before, language);
+            after = String.valueOf(fix.getOrDefault("after", ""));
+            explanation = String.valueOf(fix.getOrDefault("explanation", vuln.getRecommendation()));
+        } catch (Exception e) {
+            log.warn("AI fix generation unavailable, using local template: {}", e.getMessage());
+            after = localFixTemplate(vuln.getType());
+            explanation = "AI service unavailable. Local template fix applied. Start ai-service on :8000 for LLM-backed fixes.";
+        }
 
         vuln.setSuggestedFix(after);
         vuln.setAiExplanation(explanation);
         vulnerabilityRepository.save(vuln);
 
-        return new FixGenerateResponse(vuln.getId(), before, after.trim(), explanation);
+        return new FixGenerateResponse(vuln.getId(), before, after, explanation);
+    }
+
+    public void acceptFix(Long vulnerabilityId, boolean accepted) {
+        User user = currentUserService.requireCurrentUser();
+        Vulnerability vuln = vulnerabilityRepository.findById(vulnerabilityId)
+                .orElseThrow(() -> new IllegalArgumentException("Vulnerability not found"));
+        if (!vuln.getScan().getProject().getUser().getId().equals(user.getId())) {
+            throw new IllegalArgumentException("Vulnerability not found");
+        }
+        try {
+            aiServiceClient.reportFixFeedback(accepted);
+        } catch (Exception e) {
+            log.warn("Unable to report fix feedback: {}", e.getMessage());
+        }
+    }
+
+    private String inferLanguage(String fileLocation) {
+        if (fileLocation == null) {
+            return "java";
+        }
+        String lower = fileLocation.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".py")) return "python";
+        if (lower.endsWith(".js") || lower.endsWith(".jsx")) return "javascript";
+        if (lower.endsWith(".ts") || lower.endsWith(".tsx")) return "typescript";
+        if (lower.endsWith(".cs")) return "csharp";
+        if (lower.endsWith(".go")) return "go";
+        return "java";
+    }
+
+    private String localFixTemplate(String type) {
+        String upper = type == null ? "" : type.toUpperCase(Locale.ROOT);
+        if (upper.contains("SQL")) {
+            return """
+                    PreparedStatement stmt = connection.prepareStatement(
+                        "SELECT * FROM users WHERE id = ?"
+                    );
+                    stmt.setLong(1, userId);
+                    ResultSet rs = stmt.executeQuery();
+                    """;
+        }
+        if (upper.contains("XSS")) {
+            return "element.textContent = userInput;";
+        }
+        if (upper.contains("HARDCODED") || upper.contains("CREDENTIAL")) {
+            return "String password = System.getenv(\"APP_DB_PASSWORD\");";
+        }
+        return "// Apply secure coding remediation for: " + type;
     }
 
     private ScanResponse toScanResponse(Scan scan) {
@@ -130,7 +200,8 @@ public class ScanService {
                 scan.getStatus(),
                 scan.getStartedAt(),
                 scan.getCompletedAt(),
-                scan.getVulnerabilityCount()
+                scan.getVulnerabilityCount(),
+                scan.getErrorMessage()
         );
     }
 

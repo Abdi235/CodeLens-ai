@@ -9,6 +9,8 @@ dist/
 build/
 .gradle/
 backend/data/
+backend/workspace/
+workspace/
 
 # Env & secrets
 .env

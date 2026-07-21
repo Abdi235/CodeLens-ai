@@ -35,6 +35,9 @@ public class Scan {
     @Column(name = "vulnerability_count")
     private Integer vulnerabilityCount;
 
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
+
     @PrePersist
     void onCreate() {
         if (status == null) {

@@ -1,9 +1,17 @@
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { api } from '../lib/api'
+import { api, getToken } from '../lib/api'
 
 type Project = { id: number; name: string; repositoryUrl?: string; createdAt: string }
-type Scan = { id: number; status: string; startedAt: string; completedAt?: string; vulnerabilityCount: number }
+type Scan = {
+  id: number
+  status: string
+  startedAt: string
+  completedAt?: string
+  vulnerabilityCount: number
+  errorMessage?: string
+}
 type Vulnerability = {
   id: number
   severity: string
@@ -12,6 +20,7 @@ type Vulnerability = {
   lineNumber?: number
   description?: string
   recommendation?: string
+  aiExplanation?: string
   suggestedFix?: string
 }
 
@@ -19,6 +28,8 @@ export function ProjectDetailPage() {
   const { id } = useParams()
   const projectId = Number(id)
   const queryClient = useQueryClient()
+  const [uploadName, setUploadName] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -30,6 +41,11 @@ export function ProjectDetailPage() {
     queryKey: ['scans', projectId],
     queryFn: () => api<Scan[]>(`/api/projects/${projectId}/scans`),
     enabled: Number.isFinite(projectId),
+    refetchInterval: (query) => {
+      const list = query.state.data
+      const active = list?.some((s) => s.status === 'PENDING' || s.status === 'RUNNING')
+      return active ? 2000 : false
+    },
   })
 
   const vulns = useQuery({
@@ -38,12 +54,40 @@ export function ProjectDetailPage() {
     enabled: Number.isFinite(projectId),
   })
 
+  useEffect(() => {
+    const latest = scans.data?.[0]
+    if (latest && (latest.status === 'COMPLETED' || latest.status === 'FAILED')) {
+      queryClient.invalidateQueries({ queryKey: ['project-vulns', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] })
+    }
+  }, [scans.data, projectId, queryClient])
+
   const runScan = useMutation({
     mutationFn: () => api<Scan>(`/api/projects/${projectId}/scan`, { method: 'POST' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scans', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['project-vulns', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] })
+    },
+  })
+
+  const uploadScan = useMutation({
+    mutationFn: async (file: File) => {
+      const token = getToken()
+      const body = new FormData()
+      body.append('file', file)
+      const res = await fetch(`/api/projects/${projectId}/scan/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body,
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { message?: string }).message || `Upload failed (${res.status})`)
+      }
+      return res.json() as Promise<Scan>
+    },
+    onSuccess: () => {
+      setUploadName(null)
+      queryClient.invalidateQueries({ queryKey: ['scans', projectId] })
     },
   })
 
@@ -59,6 +103,14 @@ export function ProjectDetailPage() {
     },
   })
 
+  const feedback = useMutation({
+    mutationFn: ({ id: vulnId, accepted }: { id: number; accepted: boolean }) =>
+      api(`/api/fix/${vulnId}/feedback`, {
+        method: 'POST',
+        body: JSON.stringify({ accepted }),
+      }),
+  })
+
   if (project.isLoading) return <p>Loading project…</p>
   if (project.isError || !project.data) {
     return (
@@ -68,6 +120,8 @@ export function ProjectDetailPage() {
     )
   }
 
+  const scanning = (scans.data ?? []).some((s) => s.status === 'PENDING' || s.status === 'RUNNING')
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -76,17 +130,47 @@ export function ProjectDetailPage() {
             ← Projects
           </Link>
           <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl font-semibold">{project.data.name}</h1>
-          <p className="mt-1 text-slate-600">{project.data.repositoryUrl || 'No repository URL configured'}</p>
+          <p className="mt-1 text-slate-600">
+            {project.data.repositoryUrl || 'No URL — leave blank to scan bundled samples/ on Run scan'}
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => runScan.mutate()}
-          disabled={runScan.isPending}
-          className="rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-        >
-          {runScan.isPending ? 'Scanning…' : 'Run scan'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".zip,.java,.js,.ts,.py,.html"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) {
+                setUploadName(file.name)
+                uploadScan.mutate(file)
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploadScan.isPending || scanning}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {uploadScan.isPending ? 'Uploading…' : 'Upload & scan'}
+          </button>
+          <button
+            type="button"
+            onClick={() => runScan.mutate()}
+            disabled={runScan.isPending || scanning}
+            className="rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+          >
+            {scanning ? 'Scan in progress…' : runScan.isPending ? 'Starting…' : 'Run scan'}
+          </button>
+        </div>
       </div>
+
+      {uploadName && <p className="text-sm text-slate-500">Selected: {uploadName}</p>}
+      {(runScan.error || uploadScan.error) && (
+        <p className="text-sm text-red-700">{(runScan.error || uploadScan.error)?.message}</p>
+      )}
 
       <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
         <h2 className="mb-3 text-lg font-semibold">Scan history</h2>
@@ -95,6 +179,7 @@ export function ProjectDetailPage() {
             <li key={s.id} className="flex flex-wrap justify-between gap-2 border-b border-slate-100 py-2 last:border-0">
               <span>
                 Scan #{s.id} · <span className="font-medium">{s.status}</span>
+                {s.errorMessage ? <span className="ml-2 text-red-600">{s.errorMessage}</span> : null}
               </span>
               <span className="text-slate-500">
                 {s.vulnerabilityCount} findings · {new Date(s.startedAt).toLocaleString()}
@@ -118,23 +203,50 @@ export function ProjectDetailPage() {
               {v.lineNumber != null ? `:${v.lineNumber}` : ''}
             </p>
             <p className="mt-2 text-sm">{v.description}</p>
+            {v.aiExplanation && (
+              <p className="mt-2 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-950">
+                <span className="font-medium">AI:</span> {v.aiExplanation}
+              </p>
+            )}
             <p className="mt-2 text-sm text-slate-700">
-              <span className="font-medium">Fix:</span> {v.recommendation}
+              <span className="font-medium">Recommendation:</span> {v.recommendation}
             </p>
             {v.suggestedFix && (
               <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">{v.suggestedFix}</pre>
             )}
-            <button
-              type="button"
-              onClick={() => generateFix.mutate(v.id)}
-              disabled={generateFix.isPending}
-              className="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
-            >
-              Generate Fix
-            </button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => generateFix.mutate(v.id)}
+                disabled={generateFix.isPending}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+              >
+                Generate Fix
+              </button>
+              {v.suggestedFix && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => feedback.mutate({ id: v.id, accepted: true })}
+                    className="rounded-md border border-teal-300 px-3 py-1.5 text-sm font-medium text-teal-800 hover:bg-teal-50"
+                  >
+                    Accept fix
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => feedback.mutate({ id: v.id, accepted: false })}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+                  >
+                    Reject fix
+                  </button>
+                </>
+              )}
+            </div>
           </article>
         ))}
-        {(vulns.data?.length ?? 0) === 0 && <p className="text-sm text-slate-500">No vulnerabilities yet. Run a scan to seed a sample finding.</p>}
+        {(vulns.data?.length ?? 0) === 0 && (
+          <p className="text-sm text-slate-500">No vulnerabilities yet. Run a scan (uses samples/ if no repo URL).</p>
+        )}
       </section>
     </div>
   )

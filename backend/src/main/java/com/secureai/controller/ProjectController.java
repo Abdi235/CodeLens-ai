@@ -9,7 +9,9 @@ import com.secureai.service.ScanService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -38,9 +40,15 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/scan")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public ScanResponse scan(@PathVariable Long id) {
         return scanService.startScan(id);
+    }
+
+    @PostMapping(value = "/{id}/scan/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ScanResponse scanUpload(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
+        return scanService.startScanFromUpload(id, file);
     }
 
     @GetMapping("/{id}/scans")

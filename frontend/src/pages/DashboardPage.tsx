@@ -8,6 +8,14 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 type Project = { id: number; name: string; repositoryUrl?: string; createdAt: string }
 type Vulnerability = { id: number; severity: string; type: string }
+type AiMetrics = {
+  explanations_generated?: number
+  fixes_generated?: number
+  fix_acceptance_rate?: number
+  llm_enabled?: boolean
+  model?: string | null
+  error?: string
+}
 
 export function DashboardPage() {
   const projects = useQuery({
@@ -17,6 +25,11 @@ export function DashboardPage() {
   const vulns = useQuery({
     queryKey: ['vulnerabilities'],
     queryFn: () => api<Vulnerability[]>('/api/vulnerabilities'),
+  })
+  const metrics = useQuery({
+    queryKey: ['ai-metrics'],
+    queryFn: () => api<AiMetrics>('/api/metrics/ai'),
+    retry: false,
   })
 
   const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 }
@@ -42,10 +55,11 @@ export function DashboardPage() {
         <p className="mt-1 text-slate-600">Security posture across your scanned repositories.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Projects" value={projects.data?.length ?? 0} />
         <Stat label="Vulnerabilities" value={vulns.data?.length ?? 0} />
         <Stat label="High / Critical" value={counts.HIGH + counts.CRITICAL} />
+        <Stat label="Fix accept %" value={metrics.data?.fix_acceptance_rate ?? 0} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -80,6 +94,19 @@ export function DashboardPage() {
               <li className="text-sm text-slate-500">No projects yet. Create one to start scanning.</li>
             )}
           </ul>
+
+          <div className="mt-6 border-t border-slate-100 pt-4 text-sm text-slate-600">
+            <div className="font-medium text-slate-800">AI evaluation</div>
+            {metrics.data?.error ? (
+              <p className="mt-1">AI service offline — start it on :8000 to track metrics.</p>
+            ) : (
+              <ul className="mt-1 space-y-1">
+                <li>Explanations: {metrics.data?.explanations_generated ?? 0}</li>
+                <li>Fixes generated: {metrics.data?.fixes_generated ?? 0}</li>
+                <li>LLM: {metrics.data?.llm_enabled ? metrics.data.model : 'template fallback'}</li>
+              </ul>
+            )}
+          </div>
         </section>
       </div>
     </div>
