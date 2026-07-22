@@ -1,56 +1,39 @@
-# Deploy SecureAI on Render
+# Deploy SecureAI backend on Render (frontend on Vercel)
 
-Render replaces AWS for this project: managed Postgres + Docker web services + a static frontend.
+## Blueprint (recommended)
 
-## One-click Blueprint
+1. Open [Render → New Blueprint](https://dashboard.render.com/select-repo?type=blueprint)
+2. Connect **Abdi235/SecureAI** (branch `master`)
+3. Apply `render.yaml` — creates:
+   - `secureai-db` (Postgres)
+   - `secureai-ai` (FastAPI scanner)
+   - `secureai-api` (Spring Boot)
+4. Deploy and wait until both web services are **Live**
 
-1. Push this repo to GitHub (already at https://github.com/Abdi235/SecureAI).
-2. Open [Render Dashboard](https://dashboard.render.com/) → **New** → **Blueprint**.
-3. Connect the `SecureAI` repository.
-4. Confirm `render.yaml` and create the stack.
+First Docker builds can take 5–15 minutes on free tier.
 
-Blueprint creates:
+## Wire Vercel → Render
 
-| Service | Name | Role |
-| --- | --- | --- |
-| PostgreSQL | `secureai-db` | App database |
-| Web (Docker) | `secureai-ai` | FastAPI scanner + AI |
-| Web (Docker) | `secureai-api` | Spring Boot API |
-| Static site | `secureai-web` | React UI |
+1. Copy the **secureai-api** URL, e.g. `https://secureai-api.onrender.com`
+2. In Vercel → Project → Settings → Environment Variables:
+   - `VITE_API_URL` = `https://secureai-api.onrender.com` (no trailing slash)
+3. Redeploy the Vercel frontend
 
-## After first deploy
+CORS already allows `https://*.vercel.app`.
 
-1. In **secureai-ai** → Environment, optionally set `OPENAI_API_KEY`.
-2. Wait for all services to go live (free tier cold starts can take ~1 minute).
-3. Open the `secureai-web` URL and register a user.
-4. Create a project with an empty repo URL and click **Run scan** (uses bundled `samples/`).
+## Optional
 
-## Local vs Render URLs
+On `secureai-ai` → Environment, set `OPENAI_API_KEY` for real LLM explanations.
 
-| Env | Frontend | API |
-| --- | --- | --- |
-| Local | http://localhost:5173 (Vite proxy) | http://localhost:8080 |
-| Render | `https://secureai-web.onrender.com` | `VITE_API_URL` baked at build time |
+## Smoke test
+
+```bash
+curl https://YOUR-API.onrender.com/actuator/health
+```
+
+Then open your Vercel site, register, create a project, Run scan.
 
 ## Notes
 
-- Free web services sleep after idle; first request may be slow.
-- CORS allows `https://*.onrender.com` and local Vite.
-- Health checks: API `/actuator/health`, AI `/health`.
-- Rebuild the static site if you recreate the API service (so `VITE_API_URL` updates).
-
-## Manual deploy (without Blueprint)
-
-Create the four resources above, then set:
-
-**secureai-api**
-
-- `SPRING_PROFILES_ACTIVE=prod`
-- `JWT_SECRET` (long random string)
-- `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` from the Render DB
-- `AI_SERVICE_URL` = AI service public URL
-- `WORKSPACE_DIR=/tmp/secureai-workspace`
-
-**secureai-web** build env
-
-- `VITE_API_URL` = API public URL
+- Free services sleep when idle; cold start may take ~30–60s
+- Health checks: API `/actuator/health`, AI `/health`

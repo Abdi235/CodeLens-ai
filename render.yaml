@@ -1,4 +1,5 @@
-# SecureAI on Render
+# SecureAI backend stack on Render
+# Frontend lives on Vercel — set VITE_API_URL there to the secureai-api URL.
 # Dashboard: New → Blueprint → connect https://github.com/Abdi235/SecureAI
 
 databases:
@@ -61,20 +62,3 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
       - key: WORKSPACE_DIR
         value: /tmp/secureai-workspace
-
-  - type: web
-    name: secureai-web
-    runtime: static
-    plan: free
-    buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
-    staticPublishPath: frontend/dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          name: secureai-api
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL

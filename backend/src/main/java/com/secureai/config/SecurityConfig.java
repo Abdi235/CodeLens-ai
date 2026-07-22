@@ -91,10 +91,11 @@ public class SecurityConfig {
         }
 
         CorsConfiguration config = new CorsConfiguration();
-        // Patterns cover local Vite + any Render static site without circular blueprint deps
+        // Local Vite + Render + Vercel frontends
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
-                "https://*.onrender.com"
+                "https://*.onrender.com",
+                "https://*.vercel.app"
         ));
         config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
