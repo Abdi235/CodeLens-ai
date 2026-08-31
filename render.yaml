@@ -1,5 +1,5 @@
 # SecureAI backend stack on Render
-# Frontend lives on Vercel — set VITE_API_URL there to the secureai-api URL.
+# Frontend lives on Vercel — set VITE_API_URL to https://<secureai-api-host>/ then redeploy Vercel.
 # Dashboard: New → Blueprint → connect https://github.com/Abdi235/SecureAI
 
 databases:
@@ -35,6 +35,11 @@ services:
         value: prod
       - key: JWT_SECRET
         generateValue: true
+      # Full connection string — reliable hostname for PostgreSQL on Render
+      - key: DATABASE_URL
+        fromDatabase:
+          name: secureai-db
+          property: connectionString
       - key: DB_HOST
         fromDatabase:
           name: secureai-db
@@ -55,10 +60,17 @@ services:
         fromDatabase:
           name: secureai-db
           property: password
+      # RabbitMQ is not on Render free tier — auth + legacy scans still work
+      - key: SECUREAI_RABBITMQ_ENABLED
+        value: "false"
+      - key: SPRING_AUTOCONFIGURE_EXCLUDE
+        value: org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
       - key: AI_SERVICE_URL
         fromService:
           name: secureai-ai
           type: web
           envVarKey: RENDER_EXTERNAL_URL
+      - key: CORS_ORIGINS
+        value: https://secure-ai-lac.vercel.app,http://localhost:5173
       - key: WORKSPACE_DIR
         value: /tmp/secureai-workspace
