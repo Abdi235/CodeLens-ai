@@ -34,6 +34,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run test
       - run: npm run build
 
   ai-service:
@@ -46,9 +47,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Install and test scanner
+      - name: Install and test scanner + worker
         run: |
           python -m pip install -r requirements.txt
+          PYTHONPATH=. python -m pytest tests/ -v
           PYTHONPATH=. python -c "from app.scanner.semgrep_runner import scan_directory; r=scan_directory('../samples'); assert r['vulnerability_count'] >= 3, r"
       - name: Optional Semgrep install
         run: |

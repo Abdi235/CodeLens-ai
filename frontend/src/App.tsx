@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { VulnerabilitiesPage } from './pages/VulnerabilitiesPage'
+import { AnalysisPage } from './pages/AnalysisPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 const queryClient = new QueryClient()
@@ -23,6 +24,7 @@ export default function App() {
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/project/:id" element={<ProjectDetailPage />} />
               <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
+              <Route path="/analysis" element={<AnalysisPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

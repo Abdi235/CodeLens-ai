@@ -1,0 +1,18 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY ai-service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY ai-service/app ./app
+COPY samples /app/samples
+
+ENV PYTHONUNBUFFERED=1
+ENV WORKSPACE_DIR=/tmp/secureai-workspace
+ENV PYTHONPATH=/app
+
+CMD ["python", "-m", "app.worker.consumer"]
