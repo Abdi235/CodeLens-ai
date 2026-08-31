@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 const links = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/analysis', label: 'Analysis' },
+  { to: '/search', label: 'Search' },
   { to: '/projects', label: 'Projects' },
   { to: '/vulnerabilities', label: 'Vulnerabilities' },
   { to: '/settings', label: 'Settings' },
@@ -19,7 +20,7 @@ export function ProtectedLayout() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
           <div className="flex items-center gap-8">
             <NavLink to="/dashboard" className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-[var(--color-ink)]">
-              SecureAI
+              CodeLens
             </NavLink>
             <nav className="hidden gap-1 sm:flex">
               {links.map((link) => (

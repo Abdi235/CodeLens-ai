@@ -10,19 +10,19 @@ import time
 
 import pika
 
+from app.rabbitmq_url import connection_parameters, describe_connection
 from app.worker import db
 from app.worker.config import (
+    DLQ,
     EXCHANGE,
     FILE_WORKERS,
     MAX_RETRIES,
     QUEUE,
-    RABBITMQ_HOST,
-    RABBITMQ_PASSWORD,
-    RABBITMQ_PORT,
     RABBITMQ_PREFETCH,
-    RABBITMQ_USER,
     ROUTING_KEY,
+    STATUS_QUEUE,
     STATUS_ROUTING_KEY,
+    WORKER_ID,
 )
 from app.worker.pipeline import run_analysis
 
@@ -30,7 +30,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
-log = logging.getLogger("secureai.worker")
+log = logging.getLogger("codelens.worker")
 
 _shutdown = False
 
@@ -92,12 +92,15 @@ def _process_message(channel, method, properties, body: bytes) -> None:
         return
 
     _publish_status(channel, job_id, "PROCESSING")
+    db.set_worker_id(job_id, WORKER_ID)
 
     try:
         if not repository:
             raise ValueError("Repository not found for job")
+        start = time.perf_counter()
         finding_count = run_analysis(job_id, repository)
-        db.mark_completed(job_id, finding_count)
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        db.mark_completed(job_id, finding_count, duration_ms)
         _publish_status(channel, job_id, "COMPLETED", finding_count=finding_count)
         channel.basic_ack(delivery_tag=delivery_tag)
     except Exception as exc:  # noqa: BLE001
@@ -128,13 +131,13 @@ def _declare_topology(channel: pika.adapters.blocking_connection.BlockingChannel
         durable=True,
         arguments={
             "x-dead-letter-exchange": "",
-            "x-dead-letter-routing-key": "secureai.analysis.dlq",
+            "x-dead-letter-routing-key": DLQ,
         },
     )
-    channel.queue_declare(queue="secureai.analysis.dlq", durable=True)
-    channel.queue_declare(queue="secureai.job.status.queue", durable=True)
+    channel.queue_declare(queue=DLQ, durable=True)
+    channel.queue_declare(queue=STATUS_QUEUE, durable=True)
     channel.queue_bind(queue=QUEUE, exchange=EXCHANGE, routing_key=ROUTING_KEY)
-    channel.queue_bind(queue="secureai.job.status.queue", exchange=EXCHANGE, routing_key=STATUS_ROUTING_KEY)
+    channel.queue_bind(queue=STATUS_QUEUE, exchange=EXCHANGE, routing_key=STATUS_ROUTING_KEY)
     channel.basic_qos(prefetch_count=RABBITMQ_PREFETCH)
 
 
@@ -142,16 +145,15 @@ def main() -> None:
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-    params = pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        port=RABBITMQ_PORT,
-        credentials=credentials,
-        heartbeat=600,
-        blocked_connection_timeout=300,
-    )
+    params = connection_parameters()
 
-    log.info("Connecting to RabbitMQ %s:%s prefetch=%s file_workers=%s", RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_PREFETCH, FILE_WORKERS)
+    log.info(
+        "Connecting to RabbitMQ %s prefetch=%s file_workers=%s worker_id=%s",
+        describe_connection(),
+        RABBITMQ_PREFETCH,
+        FILE_WORKERS,
+        WORKER_ID,
+    )
 
     while not _shutdown:
         try:

@@ -39,9 +39,9 @@ export function LoginPage() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
       <div className="mb-8 text-center">
         <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-[var(--color-ink)]">
-          SecureAI
+          CodeLens
         </h1>
-        <p className="mt-2 text-slate-600">Scan repositories. Explain risks. Ship safer code.</p>
+        <p className="mt-2 text-slate-600">Distributed code intelligence &amp; security analysis.</p>
       </div>
 
       <form onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">

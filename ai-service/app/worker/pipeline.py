@@ -9,9 +9,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from app.index.bm25 import Bm25Index
+from app.index.inverted_index import tokenize
 from app.llm import explain
 from app.nlp.classifier import VulnerabilityClassifier
 from app.nlp.normalizer import normalize_description, normalize_remediation
+from app.parser.source_parser import parse_repository
 from app.retrieval.chunker import build_chunks, iter_source_files
 from app.retrieval.indexer import CodeRetriever
 from app.scanner.rules import scan_path
@@ -134,6 +137,59 @@ def _enrich_finding(finding: dict, retriever: CodeRetriever) -> dict:
     }
 
 
+def _persist_code_index(job_id: str, repository: str, root: Path, chunks: list) -> Bm25Index:
+    parsed = parse_repository(root)
+    bm25 = Bm25Index()
+    entries: list[dict] = []
+    symbols: list[dict] = []
+
+    for chunk in chunks:
+        doc_tokens = len(tokenize(chunk.text))
+        bm25.add(chunk.file_path, chunk.start_line, chunk.end_line, chunk.text)
+        entries.append(
+            {
+                "file_path": chunk.file_path,
+                "start_line": chunk.start_line,
+                "end_line": chunk.end_line,
+                "language": chunk.language,
+                "chunk_text": chunk.text,
+                "token_count": doc_tokens,
+            }
+        )
+
+    for parsed_file in parsed:
+        for sym in parsed_file.symbols:
+            symbols.append(
+                {
+                    "file_path": sym.file_path,
+                    "name": sym.name,
+                    "kind": sym.kind,
+                    "line_number": sym.line_number,
+                    "language": sym.language,
+                }
+            )
+
+    db.delete_index(job_id)
+    db.persist_index_entries(job_id, entries)
+    db.persist_symbols(job_id, symbols)
+
+    languages = [p.language for p in parsed if p.language != "unknown"]
+    primary = max(set(languages), key=languages.count) if languages else "unknown"
+    user_id = db.get_user_id(job_id)
+    if user_id is not None:
+        db.upsert_repository_record(
+            job_id,
+            repository,
+            user_id,
+            len(iter_source_files(root)),
+            len(entries),
+            primary,
+        )
+
+    log.info("job_id=%s indexed chunks=%d symbols=%d", job_id, len(entries), len(symbols))
+    return bm25
+
+
 def run_analysis(job_id: str, repository: str) -> int:
     started = time.perf_counter()
     work_dir = Path(WORKSPACE_DIR) / job_id
@@ -141,6 +197,7 @@ def run_analysis(job_id: str, repository: str) -> int:
 
     root = _prepare_repository(repository, work_dir)
     chunks = build_chunks(root)
+    _persist_code_index(job_id, repository, root, chunks)
     retriever = CodeRetriever(chunks)
     raw_findings = _parallel_file_scan(root)
 

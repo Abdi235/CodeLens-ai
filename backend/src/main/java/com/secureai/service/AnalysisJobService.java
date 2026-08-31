@@ -129,7 +129,9 @@ public class AnalysisJobService {
                 job.getStartedAt(),
                 job.getCompletedAt(),
                 job.getErrorMessage(),
-                job.getFindingCount()
+                job.getFindingCount(),
+                job.getWorkerId(),
+                job.getProcessingDurationMs()
         );
     }
 

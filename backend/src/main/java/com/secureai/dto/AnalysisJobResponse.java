@@ -12,5 +12,7 @@ public record AnalysisJobResponse(
         Instant startedAt,
         Instant completedAt,
         String errorMessage,
-        Integer findingCount
+        Integer findingCount,
+        String workerId,
+        Long processingDurationMs
 ) {}

@@ -55,6 +55,12 @@ public class AnalysisJob {
     @Column(name = "processing_attempts")
     private Integer processingAttempts;
 
+    @Column(name = "worker_id")
+    private String workerId;
+
+    @Column(name = "processing_duration_ms")
+    private Long processingDurationMs;
+
     @PrePersist
     void onCreate() {
         if (jobId == null) {

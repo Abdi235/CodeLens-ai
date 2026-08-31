@@ -1,109 +1,115 @@
-# SecureAI — AI-Powered Code Security Platform
+# CodeLens — Distributed Code Intelligence & Security Platform
 
-SecureAI combines **static analysis** with **LLM-based reasoning** to detect vulnerability patterns across multiple programming languages and produce prioritized remediation reports.
+CodeLens helps developers submit a GitHub repository and receive **code indexing**, **natural-language code search**, **security vulnerability detection**, **AI explanations**, and **remediation recommendations**.
+
+Built on the SecureAI foundation — extended with BM25 retrieval, AST-aware parsing, CloudAMQP messaging, and a search API.
 
 ## Architecture
 
 ```
-React (Web) / React Native (Mobile)
-        ↓ REST + WebSocket
+React + TypeScript
+       │ REST / WebSocket
+       ▼
 Spring Boot API
-        ↓ publish
-RabbitMQ (analysis queue)
-        ↓ consume
-Python Worker(s)
-        ↓
-Repository clone/prepare → Static analysis → Code retrieval (TF-IDF) → NLP classification → LLM explanation
-        ↓
-PostgreSQL
-        ↓
-Spring Boot API → React / Mobile
+       ├──────────────┐
+       ▼              ▼
+ PostgreSQL    CloudAMQP (RabbitMQ)
+                      │
+           ┌──────────┴──────────┐
+           ▼                     ▼
+    Python Worker 1        Python Worker 2
+           └──────────┬──────────┘
+                      ▼
+         Clone → Parse → Index → Retrieve → Scan → LLM → PostgreSQL
 ```
 
-| Component | Technology |
+| Layer | Technology |
 | --- | --- |
-| Web UI | React + TypeScript + Vite + Tailwind + React Query |
-| Mobile | React Native (Expo) |
+| Web | React 19, TypeScript, Vite, Tailwind |
 | API | Spring Boot 4, JWT, JPA, WebSocket |
-| Queue | RabbitMQ (management UI on port 15672) |
+| Queue | **CloudAMQP** (hosted RabbitMQ) — `RABBITMQ_URL` |
 | Workers | Python 3.13, pika, scikit-learn |
-| Database | PostgreSQL (H2 for local dev without Docker) |
-| LLM | OpenAI (optional; template fallbacks when unset) |
+| Database | PostgreSQL |
+| LLM | OpenAI (optional) |
+
+**No AWS.** No local RabbitMQ container in the default Docker Compose stack.
+
+## Features
+
+- Async repository analysis (`POST /api/analysis`)
+- Job lifecycle: `QUEUED` → `PROCESSING` → `COMPLETED` / `FAILED`
+- Multiple independent Python workers (concurrent job processing)
+- Code parsing (Python AST, Java/JS heuristics)
+- BM25 + inverted-index code search (`GET /api/search`)
+- Security static analysis + TF-IDF context retrieval + LLM reasoning
+- WebSocket job status updates
+- Repository metadata API (`GET /api/repositories/{id}`)
+
+## Information retrieval
+
+| Stage | Implementation |
+| --- | --- |
+| Parse | `parser/source_parser.py` — symbols, imports, line numbers |
+| Chunk | 80-line chunks with file paths |
+| Index | **Inverted index** (hash map + sets) for O(1) term lookup |
+| Rank | **BM25** scoring over candidate documents |
+| Search API | Spring `Bm25SearchEngine` queries persisted `code_index_entries` |
+
+### Complexity (documented)
+
+| Operation | Time | Space |
+| --- | --- | --- |
+| Build inverted index | O(n × t) per chunk tokens t | O(V + D) vocabulary + postings |
+| Candidate lookup | O(k) query terms | — |
+| BM25 score | O(c × k) candidates c, query terms k | O(D) documents in memory |
+| Naive scan | O(n × t) every query | O(1) extra |
+
+Indexing avoids re-scanning the full repository on every query.
+
+### Measured benchmark (`samples/`, Windows, Python 3.13)
+
+Run: `cd ai-service && PYTHONPATH=. python scripts/benchmark_search.py`
+
+| Method | Hits | Time (ms) |
+| --- | ---: | ---: |
+| Naive linear scan | 1 | 0.084 |
+| Inverted index candidates | 1 | 0.040 |
+| BM25 ranked search | 1 | 0.086 |
+
+On tiny repos, differences are negligible; indexing benefits grow with file count.
 
 ## Distributed processing
 
-1. **Producer** — Spring Boot `POST /api/analysis` creates a `QUEUED` job in PostgreSQL and publishes `AnalysisJobMessage` to RabbitMQ (`secureai.analysis.queue`).
-2. **Consumer** — One or more Python workers consume messages with manual ack, prefetch=1, and idempotent `job_id` claiming (`QUEUED` → `PROCESSING`).
-3. **Status channel** — Workers publish `JobStatusMessage` to `secureai.job.status.queue`. Spring updates the DB and broadcasts over WebSocket.
-4. **Retries** — Failed jobs requeue up to `WORKER_MAX_RETRIES` (default 3); final failures go to the DLQ (`secureai.analysis.dlq`) and are marked `FAILED` in PostgreSQL.
-5. **Multiple workers** — Run `worker` and `worker-2` services in Docker Compose, or start additional worker containers/processes pointing at the same queue.
+1. Spring Boot publishes `AnalysisJobMessage` to `codelens.analysis.queue`
+2. Workers consume via **CloudAMQP** (`RABBITMQ_URL`)
+3. Manual ack, prefetch=1, retries (max 3), DLQ, idempotent `job_id` claim
+4. Status updates via `codelens.job.status.queue` → WebSocket broadcast
 
-### Job lifecycle
+### Multiple workers
 
-`QUEUED` → `PROCESSING` → `COMPLETED` | `FAILED`
+```bash
+# Docker Compose (set RABBITMQ_URL in .env first)
+docker compose up --build worker worker-2
 
-Invalid transitions are rejected in both Spring Boot and the worker.
+# Or scale
+docker compose up --scale worker=3
+```
 
-## Code retrieval
+Set distinct `WORKER_ID` per process.
 
-The worker does **not** send entire repositories to the LLM.
+## Setup
 
-1. **Parse** — Walk source files (`.java`, `.py`, `.js`, `.ts`, etc.), skip `node_modules` / `.git`.
-2. **Chunk** — Split files into ~80-line chunks with file path and line ranges.
-3. **Index** — Build a TF-IDF matrix over chunk text (scikit-learn).
-4. **Retrieve** — For each finding, query with vulnerability type + description; top chunks (cosine similarity > 0.05) become `retrieved_context`.
-5. **LLM** — Only retrieved context (up to 3 KB) is passed to the explain step.
+### 1. CloudAMQP (required for job queue)
 
-## Language processing (beyond raw LLM calls)
+1. Create a free instance at [cloudamqp.com](https://www.cloudamqp.com/)
+2. Copy the AMQP URL (starts with `amqps://`)
+3. Set `RABBITMQ_URL` in `.env` — **never commit this**
 
-| Module | Purpose |
-| --- | --- |
-| `nlp/classifier.py` | TF-IDF + cosine similarity maps findings to canonical OWASP-style categories |
-| `nlp/normalizer.py` | Normalizes descriptions and remediation text |
-| `retrieval/indexer.py` | Semantic (TF-IDF) retrieval of relevant code for each finding |
-
-## Parallel / concurrent file analysis
-
-Static regex scanning is **I/O-bound** (read files, run patterns). The worker uses a **`ThreadPoolExecutor`** (`FILE_WORKERS`, default 4) to scan files concurrently within a single job.
-
-- **Why threads, not multiprocessing** — Work is dominated by file I/O and regex; threads avoid pickling overhead and share the in-memory chunk index.
-- **Why not asyncio** — Existing scanner modules are synchronous; threads integrate without rewriting the rule engine.
-- **Failure isolation** — A single file scan failure is logged; other files continue.
-
-### Measured performance (samples repo, Windows, Python 3.13)
-
-Run: `cd ai-service && PYTHONPATH=. python scripts/benchmark_parallel.py`
-
-| Mode | Findings | Time (s) |
-| --- | ---: | ---: |
-| Sequential per-file scan | 4 | 0.002 |
-| Concurrent thread pool (4 workers) | 4 | 0.003 |
-| Full pipeline scan (rules + Semgrep) | 9 | 0.008 |
-
-On this small sample set, concurrency does **not** improve wall time (overhead dominates). Expect benefit on larger repositories with many files.
-
-## Networking (WebSocket)
-
-- Endpoint: `ws://<api>/ws/jobs/{jobId}?token=<JWT>`
-- Spring `JobStatusListener` pushes status updates when workers publish to the status queue.
-- React hook `useJobWebSocket` reconnects with backoff (max 5 attempts) and sends periodic pings.
-- Vite dev proxy forwards `/ws` to the backend.
-
-## Mobile client
-
-Expo app in `mobile/`:
-
-- Register / login (JWT)
-- Submit repository analysis
-- Poll job status and display findings, severity, remediation
-
-See [mobile/README.md](mobile/README.md).
-
-## Quick start (Docker — recommended)
+### 2. Local with Docker
 
 ```bash
 cp .env.example .env
-# Optional: set OPENAI_API_KEY in .env
+# Edit .env — set RABBITMQ_URL from CloudAMQP
 
 docker compose up --build
 ```
@@ -112,133 +118,47 @@ docker compose up --build
 | --- | --- |
 | Frontend | http://localhost:3000 |
 | API | http://localhost:8080 |
-| RabbitMQ management | http://localhost:15672 (user/pass from `.env`) |
 
-### Multiple workers locally
+### 3. Environment variables
 
-Docker Compose includes `worker` and `worker-2`. To add more:
+| Variable | Required | Description |
+| --- | --- | --- |
+| `RABBITMQ_URL` | Yes (queue) | CloudAMQP connection URL |
+| `DATABASE_URL` | Prod | PostgreSQL connection string |
+| `OPENAI_API_KEY` | No | LLM explanations |
+| `JWT_SECRET` | Yes | API auth |
+| `WORKER_ID` | No | Worker identifier in logs/DB |
 
-```bash
-docker compose up --scale worker=3
-```
-
-Or run a standalone worker:
-
-```bash
-cd ai-service
-pip install -r requirements.txt
-export RABBITMQ_HOST=localhost DB_HOST=localhost
-python -m app.worker.consumer
-```
-
-## Local development (without Docker)
-
-Requires PostgreSQL and RabbitMQ running locally (or use Docker only for infra):
-
-```bash
-docker compose up database rabbitmq -d
-```
-
-**Backend**
-
-```bash
-cd backend
-./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
-# Set DB_* and RABBITMQ_* env vars (see .env.example)
-```
-
-**Worker**
-
-```bash
-cd ai-service
-pip install -r requirements.txt
-export PYTHONPATH=.
-export DB_HOST=localhost RABBITMQ_HOST=localhost
-python -m app.worker.consumer
-```
-
-**Frontend**
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open http://localhost:5173 → **Analysis** → submit `samples`.
-
-**Mobile**
-
-```bash
-cd mobile
-npm install
-export EXPO_PUBLIC_API_URL=http://localhost:8080
-npx expo start
-```
-
-## Analysis API
+## API
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `POST` | `/api/analysis` | Create job (returns immediately with `jobId`, `status`) |
-| `GET` | `/api/analysis` | List your jobs |
+| `POST` | `/api/analysis` | Create analysis job |
 | `GET` | `/api/analysis/{jobId}` | Job status |
-| `GET` | `/api/analysis/{jobId}/results` | Findings (when complete) |
-
-Legacy project/scan APIs remain for backward compatibility.
+| `GET` | `/api/analysis/{jobId}/results` | Security findings |
+| `GET` | `/api/search?jobId=&q=` | BM25 code search |
+| `GET` | `/api/repositories/{id}` | Indexed repository metadata |
 
 ## Testing
 
 ```bash
-# Backend (JUnit)
-cd backend && ./mvnw test
-
-# Python worker, retrieval, NLP
-cd ai-service && PYTHONPATH=. python -m pytest tests/ -v
-
-# Frontend build
-cd frontend && npm run build
+cd backend && ./mvnw test          # 12 tests
+cd ai-service && PYTHONPATH=. python -m pytest tests/ -v   # 11 tests
+cd frontend && npm run test && npm run build
 ```
 
-Tests cover job creation, validation, state transitions, repository URL rules, scanner rules, TF-IDF retrieval, NLP classification, and parallel scan smoke tests.
+## Concurrency model
 
-## Security
+- **Between jobs**: multiple worker processes via RabbitMQ (distributed)
+- **Within a job**: `ThreadPoolExecutor` for I/O-bound file scanning (concurrent, not multi-core parallel)
 
-- Secrets via environment variables (never commit `.env`)
-- Repository URL validation before enqueue
-- Git clone uses `--depth 1` with timeout; workspace cleaned after each job
-- JWT required for analysis endpoints
-- RabbitMQ and PostgreSQL credentials configurable
+## Known limitations
 
-## Project layout
-
-```
-SecureAI/
-├── frontend/          # React web app
-├── mobile/            # Expo React Native client
-├── backend/           # Spring Boot API + RabbitMQ producer + WebSocket
-├── ai-service/        # FastAPI (legacy HTTP) + Python worker
-├── samples/           # Intentionally vulnerable demo code
-├── docker-compose.yml
-└── .env.example
-```
-
-## Limitations
-
-- **Render/Vercel deployment** — The queue-based architecture requires RabbitMQ; the previous Render blueprint does not include RabbitMQ. Use Docker Compose locally or add a managed RabbitMQ service for cloud deployment.
-- **LLM** — Without `OPENAI_API_KEY`, explanations use template text.
-- **Semgrep** — Optional; built-in regex rules always run.
-- **Scale** — Tested on small sample repos; not load-tested at high job volume. Throughput scales horizontally by adding worker instances.
-
-## Demo flow
-
-1. Start the stack (`docker compose up --build`)
-2. Register at http://localhost:3000
-3. Go to **Analysis**
-4. Submit `samples`
-5. Watch status: `QUEUED` → `PROCESSING` → `COMPLETED`
-6. Review findings with severity, file locations, retrieved context, and remediation
+- Semantic/embedding search not implemented (lexical BM25 only)
+- Java package remains `com.secureai` internally (user-facing brand is CodeLens)
+- Render deployment requires manual `RABBITMQ_URL` + `VITE_API_URL` on Vercel
+- Free-tier CloudAMQP/Render/Postgres have usage limits
 
 ## License
 
-MIT (see repository).
+MIT

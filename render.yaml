@@ -1,17 +1,17 @@
-# SecureAI backend stack on Render
-# Frontend lives on Vercel — set VITE_API_URL to https://<secureai-api-host>/ then redeploy Vercel.
-# Dashboard: New → Blueprint → connect https://github.com/Abdi235/SecureAI
+# CodeLens backend stack on Render
+# Frontend: Vercel — set VITE_API_URL to the codelens-api URL.
+# Queue: CloudAMQP — set RABBITMQ_URL in Render dashboard (do not commit).
 
 databases:
-  - name: secureai-db
+  - name: codelens-db
     plan: free
-    databaseName: secureai
-    user: secureai
+    databaseName: codelens
+    user: codelens
     postgresMajorVersion: "16"
 
 services:
   - type: web
-    name: secureai-ai
+    name: codelens-ai
     runtime: docker
     plan: free
     dockerfilePath: ./ai-service/Dockerfile
@@ -24,7 +24,7 @@ services:
         value: gpt-4o-mini
 
   - type: web
-    name: secureai-api
+    name: codelens-api
     runtime: docker
     plan: free
     dockerfilePath: ./backend/Dockerfile
@@ -35,42 +35,40 @@ services:
         value: prod
       - key: JWT_SECRET
         generateValue: true
-      # Full connection string — reliable hostname for PostgreSQL on Render
       - key: DATABASE_URL
         fromDatabase:
-          name: secureai-db
+          name: codelens-db
           property: connectionString
-      - key: DB_HOST
-        fromDatabase:
-          name: secureai-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: secureai-db
-          property: port
-      - key: DB_NAME
-        fromDatabase:
-          name: secureai-db
-          property: database
-      - key: DB_USER
-        fromDatabase:
-          name: secureai-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: secureai-db
-          property: password
-      # RabbitMQ is not on Render free tier — auth + legacy scans still work
+      - key: RABBITMQ_URL
+        sync: false
       - key: SECUREAI_RABBITMQ_ENABLED
-        value: "false"
-      - key: SPRING_AUTOCONFIGURE_EXCLUDE
-        value: org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+        value: "true"
       - key: AI_SERVICE_URL
         fromService:
-          name: secureai-ai
+          name: codelens-ai
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: CORS_ORIGINS
         value: https://secure-ai-lac.vercel.app,http://localhost:5173
       - key: WORKSPACE_DIR
-        value: /tmp/secureai-workspace
+        value: /tmp/codelens-workspace
+
+  - type: worker
+    name: codelens-worker
+    runtime: docker
+    plan: free
+    dockerfilePath: ./ai-service/Dockerfile.worker
+    dockerContext: .
+    envVars:
+      - key: WORKER_ID
+        value: render-worker-1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: codelens-db
+          property: connectionString
+      - key: RABBITMQ_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: WORKSPACE_DIR
+        value: /tmp/codelens-workspace

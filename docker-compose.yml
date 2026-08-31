@@ -1,33 +1,19 @@
-# Copy from repository root: docker compose uses context .
+# CodeLens local stack — RabbitMQ via CloudAMQP (set RABBITMQ_URL in .env)
 
 services:
   database:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${DB_NAME:-secureai}
-      POSTGRES_USER: ${DB_USER:-secureai}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secureai}
+      POSTGRES_DB: ${DB_NAME:-codelens}
+      POSTGRES_USER: ${DB_USER:-codelens}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-codelens}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-secureai} -d ${DB_NAME:-secureai}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-codelens} -d ${DB_NAME:-codelens}"]
       interval: 5s
-      timeout: 5s
-      retries: 10
-
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-secureai}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-secureai}
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
       timeout: 5s
       retries: 10
 
@@ -39,22 +25,19 @@ services:
       - "${BACKEND_PORT:-8080}:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: postgresql://${DB_USER:-codelens}:${DB_PASSWORD:-codelens}@database:5432/${DB_NAME:-codelens}
       DB_HOST: database
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-secureai}
-      DB_USER: ${DB_USER:-secureai}
-      DB_PASSWORD: ${DB_PASSWORD:-secureai}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: ${RABBITMQ_USER:-secureai}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-secureai}
-      JWT_SECRET: ${JWT_SECRET:-SecureAIComposeSecretKeyMustBeLongEnoughForHS256Algorithms!!}
+      DB_NAME: ${DB_NAME:-codelens}
+      DB_USER: ${DB_USER:-codelens}
+      DB_PASSWORD: ${DB_PASSWORD:-codelens}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      SECUREAI_RABBITMQ_ENABLED: ${SECUREAI_RABBITMQ_ENABLED:-true}
+      JWT_SECRET: ${JWT_SECRET:-CodeLensComposeSecretKeyMustBeLongEnoughForHS256Algorithms!!}
       CORS_ORIGINS: http://localhost:3000,http://localhost:5173
-      WORKSPACE_DIR: /tmp/secureai-workspace
+      WORKSPACE_DIR: /tmp/codelens-workspace
     depends_on:
       database:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
 
   worker:
@@ -62,25 +45,17 @@ services:
       context: .
       dockerfile: ai-service/Dockerfile.worker
     environment:
-      DB_HOST: database
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-secureai}
-      DB_USER: ${DB_USER:-secureai}
-      DB_PASSWORD: ${DB_PASSWORD:-secureai}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: ${RABBITMQ_USER:-secureai}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-secureai}
+      WORKER_ID: worker-1
+      DATABASE_URL: postgresql://${DB_USER:-codelens}:${DB_PASSWORD:-codelens}@database:5432/${DB_NAME:-codelens}
+      RABBITMQ_URL: ${RABBITMQ_URL}
       RABBITMQ_PREFETCH: ${RABBITMQ_PREFETCH:-1}
       FILE_WORKERS: ${FILE_WORKERS:-4}
       WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES:-3}
-      WORKSPACE_DIR: /tmp/secureai-workspace
+      WORKSPACE_DIR: /tmp/codelens-workspace
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
     depends_on:
       database:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       backend:
         condition: service_started
@@ -90,23 +65,15 @@ services:
       context: .
       dockerfile: ai-service/Dockerfile.worker
     environment:
-      DB_HOST: database
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-secureai}
-      DB_USER: ${DB_USER:-secureai}
-      DB_PASSWORD: ${DB_PASSWORD:-secureai}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: ${RABBITMQ_USER:-secureai}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-secureai}
+      WORKER_ID: worker-2
+      DATABASE_URL: postgresql://${DB_USER:-codelens}:${DB_PASSWORD:-codelens}@database:5432/${DB_NAME:-codelens}
+      RABBITMQ_URL: ${RABBITMQ_URL}
       RABBITMQ_PREFETCH: ${RABBITMQ_PREFETCH:-1}
       FILE_WORKERS: ${FILE_WORKERS:-4}
-      WORKSPACE_DIR: /tmp/secureai-workspace
+      WORKSPACE_DIR: /tmp/codelens-workspace
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       database:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
 
   frontend:

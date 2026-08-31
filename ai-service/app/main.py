@@ -12,7 +12,7 @@ from app.llm import explain, generate_fix, llm_enabled, metrics_snapshot
 from app.scanner.semgrep_runner import scan_directory
 
 app = FastAPI(
-    title="SecureAI AI Service",
+    title="CodeLens AI Service",
     description="Static analysis + LLM vulnerability explanation and fix generation",
     version="0.2.0",
 )

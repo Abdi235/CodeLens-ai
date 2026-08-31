@@ -83,7 +83,7 @@ export function AnalysisPage() {
       <div>
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">Repository Analysis</h1>
         <p className="mt-1 text-slate-600">
-          Submit a repository for distributed analysis via RabbitMQ workers.
+          Submit a GitHub repository for distributed analysis via CloudAMQP workers.
         </p>
       </div>
 

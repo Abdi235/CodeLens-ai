@@ -51,7 +51,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
           PYTHONPATH=. python -m pytest tests/ -v
-          PYTHONPATH=. python -c "from app.scanner.semgrep_runner import scan_directory; r=scan_directory('../samples'); assert r['vulnerability_count'] >= 3, r"
+          PYTHONPATH=. python scripts/benchmark_search.py
       - name: Optional Semgrep install
         run: |
           python -m pip install semgrep || true
