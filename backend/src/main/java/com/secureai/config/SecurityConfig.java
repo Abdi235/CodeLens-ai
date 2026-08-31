@@ -83,22 +83,13 @@ public class SecurityConfig {
 
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
-        List<String> origins = new ArrayList<>(Arrays.stream(corsOrigins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList());
-        if (origins.isEmpty()) {
-            origins.add("http://localhost:5173");
-        }
-
         CorsConfiguration config = new CorsConfiguration();
-        // Local Vite + Render + Vercel frontends
+        // Allow all Vercel preview/production URLs + local dev
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
-                "https://*.onrender.com",
-                "https://*.vercel.app"
+                "https://*.vercel.app",
+                "https://*.onrender.com"
         ));
-        config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
