@@ -1,6 +1,8 @@
 package com.secureai.controller;
 
+import com.secureai.dto.SystemMetricsResponse;
 import com.secureai.service.AiServiceClient;
+import com.secureai.service.MonitoringService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +16,7 @@ import java.util.Map;
 public class MetricsController {
 
     private final AiServiceClient aiServiceClient;
+    private final MonitoringService monitoringService;
 
     @GetMapping("/ai")
     public Map<String, Object> aiMetrics() {
@@ -25,5 +28,10 @@ public class MetricsController {
                     "message", e.getMessage() != null ? e.getMessage() : "unreachable"
             );
         }
+    }
+
+    @GetMapping("/system")
+    public SystemMetricsResponse systemMetrics() {
+        return monitoringService.snapshot();
     }
 }

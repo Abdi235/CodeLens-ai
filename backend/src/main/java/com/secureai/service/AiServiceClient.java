@@ -88,4 +88,21 @@ public class AiServiceClient {
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
     }
+
+    public boolean isHealthy() {
+        try {
+            Map<String, Object> body = aiRestClient.get()
+                    .uri("/health")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            if (body == null) {
+                return false;
+            }
+            Object status = body.get("status");
+            return status == null || "ok".equalsIgnoreCase(String.valueOf(status))
+                    || "UP".equalsIgnoreCase(String.valueOf(status));
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }

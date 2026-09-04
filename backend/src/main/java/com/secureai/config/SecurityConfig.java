@@ -1,8 +1,10 @@
 package com.secureai.config;
 
+import com.secureai.monitoring.HttpMetricsFilter;
 import com.secureai.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,8 +27,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -37,6 +37,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final HttpMetricsFilter httpMetricsFilter;
     private final UserDetailsService userDetailsService;
 
     @Value("${secureai.cors.origins:http://localhost:5173,http://localhost:3000}")
@@ -58,6 +59,7 @@ public class SecurityConfig {
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .authenticationProvider(authenticationProvider())
+                .addFilterBefore(httpMetricsFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -79,6 +81,14 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    /** Keep metrics in the security chain only — avoid double-counting via servlet auto-registration. */
+    @Bean
+    FilterRegistrationBean<HttpMetricsFilter> httpMetricsFilterRegistration(HttpMetricsFilter filter) {
+        FilterRegistrationBean<HttpMetricsFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

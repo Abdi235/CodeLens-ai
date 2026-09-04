@@ -44,6 +44,7 @@ Spring Boot API
 - Security static analysis + TF-IDF context retrieval + LLM reasoning
 - WebSocket job status updates
 - Repository metadata API (`GET /api/repositories/{id}`)
+- **Service monitoring** on the Dashboard (`GET /api/metrics/system`): API uptime, request latency (avg/p95), server error rate, dependency health (DB / CloudAMQP / AI), and analysis pipeline counts — separate from vulnerability / AI product analytics (`/api/metrics/ai`)
 
 ## Information retrieval
 
