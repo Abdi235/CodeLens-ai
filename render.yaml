@@ -53,12 +53,15 @@ services:
       - key: WORKSPACE_DIR
         value: /tmp/codelens-workspace
 
-  - type: worker
+  # Free plan disallows Background Workers — run the consumer as a web service
+  # with /health so Render keeps it alive.
+  - type: web
     name: codelens-worker
     runtime: docker
     plan: free
     dockerfilePath: ./ai-service/Dockerfile.worker
     dockerContext: .
+    healthCheckPath: /health
     envVars:
       - key: WORKER_ID
         value: render-worker-1
