@@ -49,7 +49,7 @@ services:
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: CORS_ORIGINS
-        value: https://secure-ai-lac.vercel.app,http://localhost:5173
+        value: https://code-lens-ai-ruby.vercel.app,https://secure-ai-lac.vercel.app,http://localhost:5173
       - key: WORKSPACE_DIR
         value: /tmp/codelens-workspace
 
