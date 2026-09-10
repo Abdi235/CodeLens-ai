@@ -5,6 +5,10 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from typing import Any, Iterator
+
+import psycopg2
+import psycopg2.extensions
+
 from app.worker.config import DATABASE_URL, DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER
 
 log = logging.getLogger(__name__)
@@ -12,7 +16,10 @@ log = logging.getLogger(__name__)
 
 def _connect():
     if DATABASE_URL:
-        return psycopg2.connect(DATABASE_URL)
+        url = DATABASE_URL
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://") :]
+        return psycopg2.connect(url)
     return psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import signal
 import sys
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pika
 
@@ -39,6 +42,32 @@ def _handle_signal(signum, frame):  # noqa: ANN001
     global _shutdown
     log.info("Shutdown signal received (%s), finishing current job...", signum)
     _shutdown = True
+
+
+def _start_health_server() -> None:
+    """Bind a tiny /health server so Render free web services stay healthy."""
+    port = int(os.getenv("PORT", "10000"))
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            if self.path in ("/health", "/", "/healthz"):
+                body = b'{"status":"ok","role":"worker"}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, format, *args):  # noqa: A003
+            return
+
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    thread = threading.Thread(target=server.serve_forever, name="health-http", daemon=True)
+    thread.start()
+    log.info("Health server listening on 0.0.0.0:%s", port)
 
 
 def _publish_status(channel: pika.adapters.blocking_connection.BlockingChannel, job_id: str, status: str, **kwargs) -> None:
@@ -154,6 +183,7 @@ def main() -> None:
         FILE_WORKERS,
         WORKER_ID,
     )
+    _start_health_server()
 
     while not _shutdown:
         try:
