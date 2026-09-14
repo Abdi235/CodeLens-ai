@@ -52,6 +52,12 @@ services:
         value: https://code-lens-ai-ruby.vercel.app,https://secure-ai-lac.vercel.app,http://localhost:5173
       - key: WORKSPACE_DIR
         value: /tmp/codelens-workspace
+      - key: WORKER_URL
+        value: https://codelens-worker-ywd7.onrender.com
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPS_AGENT_PREFER_OPENAI
+        value: "true"
 
   # Free plan disallows Background Workers — run the consumer as a web service
   # with /health so Render keeps it alive.

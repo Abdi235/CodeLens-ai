@@ -35,6 +35,13 @@ public class HttpRequestMetrics {
         }
     }
 
+    /** Used by the ops-agent incident simulator to create elevated error rates. */
+    public void injectServerErrors(int count) {
+        for (int i = 0; i < count; i++) {
+            record(50, 500);
+        }
+    }
+
     public Snapshot snapshot() {
         List<Long> samples = new ArrayList<>(latencySamplesMs);
         Collections.sort(samples);

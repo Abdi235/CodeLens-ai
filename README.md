@@ -45,6 +45,7 @@ Spring Boot API
 - WebSocket job status updates
 - Repository metadata API (`GET /api/repositories/{id}`)
 - **Service monitoring** on the Dashboard (`GET /api/metrics/system`): API uptime, request latency (avg/p95), server error rate, dependency health (DB / CloudAMQP / AI), and analysis pipeline counts — separate from vulnerability / AI product analytics (`/api/metrics/ai`)
+- **Ops Agent** (`/ops-agent`, `POST /api/ops-agent/run|simulate`): tool-using autonomous ops agent that observes live health and chooses remediations (`requeue_job`, `wake_worker`, `wake_ai`, `page_human`, `resolve_incident`). Uses OpenAI tool-calling when `OPENAI_API_KEY` is set; otherwise a labeled heuristic fallback for local/CI. Incident simulator + eval metrics (`GET /api/ops-agent/eval`) for measurable remediation success rate.
 
 ## Information retrieval
 

@@ -151,4 +151,44 @@ public class AnalysisJobService {
                 f.getRuleId()
         );
     }
+
+    /**
+     * Force a stuck/failed job back to QUEUED and republish to CloudAMQP.
+     * Used by the ops agent (bypasses normal status transition rules).
+     */
+    @Transactional
+    public AnalysisJobResponse requeueJob(String jobId) {
+        AnalysisJob job = jobRepository.findByJobId(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Analysis job not found: " + jobId));
+        job.setStatus(AnalysisJobStatus.QUEUED);
+        job.setStartedAt(null);
+        job.setCompletedAt(null);
+        job.setWorkerId(null);
+        job.setErrorMessage("Requeued by ops agent");
+        job = jobRepository.save(job);
+        jobPublisher.publish(new AnalysisJobMessage(job.getJobId(), job.getRepository(), job.getUser().getId(), 1));
+        log.info("Ops agent requeued jobId={}", jobId);
+        return toResponse(job);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AnalysisJob> findStuckJobs(Instant cutoff) {
+        return jobRepository.findStuckJobs(
+                List.of(AnalysisJobStatus.QUEUED, AnalysisJobStatus.PROCESSING),
+                cutoff
+        );
+    }
+
+    @Transactional
+    public AnalysisJob createStuckJobForSimulation(User user, Instant createdAt) {
+        AnalysisJob job = AnalysisJob.builder()
+                .jobId(UUID.randomUUID().toString())
+                .user(user)
+                .repository("samples")
+                .status(AnalysisJobStatus.QUEUED)
+                .createdAt(createdAt)
+                .errorMessage("Simulated stuck job")
+                .build();
+        return jobRepository.save(job);
+    }
 }

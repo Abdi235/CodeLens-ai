@@ -9,6 +9,7 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { VulnerabilitiesPage } from './pages/VulnerabilitiesPage'
 import { AnalysisPage } from './pages/AnalysisPage'
 import { SearchPage } from './pages/SearchPage'
+import { OpsAgentPage } from './pages/OpsAgentPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 const queryClient = new QueryClient()
@@ -27,6 +28,7 @@ export default function App() {
               <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
               <Route path="/analysis" element={<AnalysisPage />} />
               <Route path="/search" element={<SearchPage />} />
+              <Route path="/ops-agent" element={<OpsAgentPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
