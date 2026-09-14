@@ -37,14 +37,6 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "auth_provider", nullable = false)
-    @Builder.Default
-    private AuthProvider authProvider = AuthProvider.LOCAL;
-
-    @Column(name = "oauth_subject")
-    private String oauthSubject;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -55,9 +47,6 @@ public class User {
         }
         if (role == null) {
             role = Role.USER;
-        }
-        if (authProvider == null) {
-            authProvider = AuthProvider.LOCAL;
         }
     }
 

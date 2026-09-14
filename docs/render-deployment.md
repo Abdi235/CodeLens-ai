@@ -8,52 +8,6 @@
 | API | `https://codelens-api-wym7.onrender.com` |
 | Vercel env | `VITE_API_URL=https://codelens-api-wym7.onrender.com` |
 
-## OAuth email sign-in + welcome email
-
-To enable **Gmail / Google** and **Outlook / Microsoft** sign-in (provider picker → redirect back to dashboard):
-
-### 1. Google Cloud
-
-1. Create an OAuth 2.0 Client ID (Web application)
-2. Authorized redirect URI:
-   `https://codelens-api-wym7.onrender.com/api/auth/oauth/google/callback`
-3. Set on `codelens-api`:
-   - `OAUTH_GOOGLE_CLIENT_ID`
-   - `OAUTH_GOOGLE_CLIENT_SECRET`
-
-### 2. Microsoft Entra (Azure AD)
-
-1. App registration → Web redirect URI:
-   `https://codelens-api-wym7.onrender.com/api/auth/oauth/microsoft/callback`
-2. Create a client secret
-3. API permissions: `openid`, `email`, `profile`, `User.Read`
-4. Set on `codelens-api`:
-   - `OAUTH_MICROSOFT_CLIENT_ID`
-   - `OAUTH_MICROSOFT_CLIENT_SECRET`
-
-### 3. Shared redirect env on API
-
-```
-FRONTEND_URL=https://code-lens-ai-ruby.vercel.app
-API_PUBLIC_URL=https://codelens-api-wym7.onrender.com
-```
-
-### 4. Welcome email (SMTP)
-
-```
-MAIL_ENABLED=true
-MAIL_HOST=smtp.example.com
-MAIL_PORT=587
-MAIL_USERNAME=...
-MAIL_PASSWORD=...
-MAIL_FROM=noreply@yourdomain.com
-MAIL_FROM_NAME=CodeLens
-```
-
-New OAuth (and email/password) signups receive a welcome email with a CodeLens product rundown when SMTP is enabled.
-
----
-
 ## Blueprint
 
 1. Open [Render → New Blueprint](https://dashboard.render.com/select-repo?type=blueprint)
