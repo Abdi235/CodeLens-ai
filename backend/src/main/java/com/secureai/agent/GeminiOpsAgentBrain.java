@@ -75,7 +75,8 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
             ObjectNode decl = functionDeclarations.addObject();
             decl.put("name", tool.name());
             decl.put("description", tool.description());
-            decl.set("parameters", objectMapper.valueToTree(tool.parametersSchema()));
+            // Gemini rejects JSON Schema keywords like additionalProperties
+            decl.set("parameters", sanitizeGeminiSchema(objectMapper.valueToTree(tool.parametersSchema())));
         }
         body.putArray("tools").addObject().set("functionDeclarations", functionDeclarations);
 
@@ -134,6 +135,41 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
 
         String content = text.isEmpty() ? null : text.toString();
         return new Decision(content, toolCalls);
+    }
+
+    /**
+     * Gemini function declarations accept a subset of JSON Schema.
+     * Strip unsupported keywords (e.g. additionalProperties) recursively.
+     */
+    private JsonNode sanitizeGeminiSchema(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return objectMapper.createObjectNode().put("type", "object");
+        }
+        if (node.isObject()) {
+            ObjectNode out = objectMapper.createObjectNode();
+            node.properties().forEach(entry -> {
+                String key = entry.getKey();
+                if ("additionalProperties".equals(key)
+                        || "$schema".equals(key)
+                        || "$id".equals(key)
+                        || "default".equals(key)) {
+                    return;
+                }
+                out.set(key, sanitizeGeminiSchema(entry.getValue()));
+            });
+            if (!out.has("type") && (out.has("properties") || out.isEmpty())) {
+                out.put("type", "object");
+            }
+            return out;
+        }
+        if (node.isArray()) {
+            ArrayNode out = objectMapper.createArrayNode();
+            for (JsonNode child : node) {
+                out.add(sanitizeGeminiSchema(child));
+            }
+            return out;
+        }
+        return node;
     }
 
     private String extractSystemText(List<Map<String, Object>> messages) {
