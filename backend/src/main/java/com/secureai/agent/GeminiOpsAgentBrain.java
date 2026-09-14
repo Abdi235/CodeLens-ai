@@ -75,8 +75,7 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
             ObjectNode decl = functionDeclarations.addObject();
             decl.put("name", tool.name());
             decl.put("description", tool.description());
-            // Gemini rejects JSON Schema keywords like additionalProperties
-            decl.set("parameters", sanitizeGeminiSchema(objectMapper.valueToTree(tool.parametersSchema())));
+            decl.set("parameters", toGeminiParameters(tool.parametersSchema()));
         }
         body.putArray("tools").addObject().set("functionDeclarations", functionDeclarations);
 
@@ -88,13 +87,20 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
                 + ":generateContent?key="
                 + apiKey;
 
+        final String jsonBody;
+        try {
+            jsonBody = objectMapper.writeValueAsString(body);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to serialize Gemini request", ex);
+        }
+
         Map<?, ?> response;
         try {
             response = RestClient.create()
                     .post()
                     .uri(uri)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
+                    .body(jsonBody)
                     .retrieve()
                     .body(Map.class);
         } catch (Exception ex) {
@@ -138,38 +144,55 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
     }
 
     /**
-     * Gemini function declarations accept a subset of JSON Schema.
-     * Strip unsupported keywords (e.g. additionalProperties) recursively.
+     * Rebuild tool parameters as a Gemini-safe JSON Schema object.
+     * Ensures {@code properties} is always a JSON object (never map-entry arrays)
+     * and omits unsupported keywords like {@code additionalProperties}.
      */
-    private JsonNode sanitizeGeminiSchema(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return objectMapper.createObjectNode().put("type", "object");
-        }
-        if (node.isObject()) {
-            ObjectNode out = objectMapper.createObjectNode();
-            node.properties().forEach(entry -> {
-                String key = entry.getKey();
-                if ("additionalProperties".equals(key)
-                        || "$schema".equals(key)
-                        || "$id".equals(key)
-                        || "default".equals(key)) {
-                    return;
+    private ObjectNode toGeminiParameters(Map<String, Object> schema) {
+        ObjectNode params = objectMapper.createObjectNode();
+        params.put("type", "object");
+        ObjectNode properties = params.putObject("properties");
+
+        if (schema != null) {
+            Object propsObj = schema.get("properties");
+            if (propsObj instanceof Map<?, ?> propsMap) {
+                for (Map.Entry<?, ?> entry : propsMap.entrySet()) {
+                    String propName = String.valueOf(entry.getKey());
+                    ObjectNode prop = properties.putObject(propName);
+                    if (entry.getValue() instanceof Map<?, ?> propSchema) {
+                        Object type = propSchema.get("type");
+                        if (type != null) {
+                            prop.put("type", String.valueOf(type));
+                        } else {
+                            prop.put("type", "string");
+                        }
+                        Object description = propSchema.get("description");
+                        if (description != null) {
+                            prop.put("description", String.valueOf(description));
+                        }
+                        Object enumVals = propSchema.get("enum");
+                        if (enumVals instanceof List<?> enums) {
+                            ArrayNode enumNode = prop.putArray("enum");
+                            for (Object v : enums) {
+                                enumNode.add(String.valueOf(v));
+                            }
+                        }
+                    } else {
+                        prop.put("type", "string");
+                    }
                 }
-                out.set(key, sanitizeGeminiSchema(entry.getValue()));
-            });
-            if (!out.has("type") && (out.has("properties") || out.isEmpty())) {
-                out.put("type", "object");
             }
-            return out;
-        }
-        if (node.isArray()) {
-            ArrayNode out = objectMapper.createArrayNode();
-            for (JsonNode child : node) {
-                out.add(sanitizeGeminiSchema(child));
+
+            Object requiredObj = schema.get("required");
+            if (requiredObj instanceof List<?> required && !required.isEmpty()) {
+                ArrayNode requiredNode = params.putArray("required");
+                for (Object r : required) {
+                    requiredNode.add(String.valueOf(r));
+                }
             }
-            return out;
         }
-        return node;
+
+        return params;
     }
 
     private String extractSystemText(List<Map<String, Object>> messages) {
@@ -191,7 +214,6 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
     /**
      * Convert OpenAI-style transcript messages into Gemini contents.
      */
-    @SuppressWarnings("unchecked")
     private void appendGeminiContents(ArrayNode contents, List<Map<String, Object>> messages) {
         for (Map<String, Object> message : messages) {
             String role = String.valueOf(message.getOrDefault("role", ""));
@@ -251,7 +273,6 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
                 content.put("role", "user");
                 ObjectNode part = content.putArray("parts").addObject();
                 ObjectNode functionResponse = part.putObject("functionResponse");
-                // Prefer tool name from prior assistant call id mapping; fall back to generic
                 String name = message.containsKey("name")
                         ? String.valueOf(message.get("name"))
                         : inferToolName(messages, message);
@@ -275,7 +296,6 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private String inferToolName(List<Map<String, Object>> messages, Map<String, Object> toolMessage) {
         String callId = String.valueOf(toolMessage.getOrDefault("tool_call_id", ""));
         for (int i = messages.size() - 1; i >= 0; i--) {
