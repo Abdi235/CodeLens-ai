@@ -111,6 +111,30 @@ Endpoints: `POST /api/ops-agent/run`, `POST /api/ops-agent/simulate`, `GET /api/
 
 ---
 
+## Email service sign-in (OAuth)
+
+Sign in with **Gmail / Google** or **Outlook / Microsoft**: choose a provider → authenticate there → return to the CodeLens dashboard.
+
+Set on the API:
+
+| Variable | Purpose |
+| --- | --- |
+| `FRONTEND_URL` | Vercel app URL |
+| `API_PUBLIC_URL` | Public API URL (OAuth callback base) |
+| `OAUTH_GOOGLE_CLIENT_ID` / `SECRET` | Google Cloud OAuth client |
+| `OAUTH_MICROSOFT_CLIENT_ID` / `SECRET` | Entra app registration |
+
+Redirect URIs:
+
+- `{API_PUBLIC_URL}/api/auth/oauth/google/callback`
+- `{API_PUBLIC_URL}/api/auth/oauth/microsoft/callback`
+
+### Welcome email
+
+New accounts (OAuth or email/password) get a welcome email describing CodeLens when SMTP is enabled (`MAIL_ENABLED=true` + `MAIL_HOST` / credentials). See [docs/render-deployment.md](docs/render-deployment.md).
+
+---
+
 ## Quick start (local)
 
 ```bash
