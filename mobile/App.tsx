@@ -47,7 +47,13 @@ function LoginScreen({
       const path = register ? '/api/auth/register' : '/api/auth/login'
       const data = await api<{ token: string }>(path, {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(
+          register
+            ? email.includes('@')
+              ? { email, password }
+              : { username: email, password }
+            : { login: email, password },
+        ),
       })
       await setToken(data.token)
       onAuthed()
@@ -63,7 +69,7 @@ function LoginScreen({
     <SafeAreaView style={{ flex: 1, padding: 20, justifyContent: 'center' }}>
       <Text style={{ fontSize: 28, fontWeight: '700', marginBottom: 8 }}>SecureAI</Text>
       <Text style={{ color: '#64748b', marginBottom: 24 }}>Mobile security analysis client</Text>
-      <TextInput placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 12, marginBottom: 12 }} />
+      <TextInput placeholder="Email or username" value={email} onChangeText={setEmail} autoCapitalize="none" style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 12, marginBottom: 12 }} />
       <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 12, marginBottom: 12 }} />
       {error && <Text style={{ color: '#b91c1c', marginBottom: 12 }}>{error}</Text>}
       <Button title={loading ? 'Please wait…' : 'Sign in'} onPress={() => submit(false)} disabled={loading} />

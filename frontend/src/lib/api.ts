@@ -8,9 +8,16 @@ const LEGACY_USER_KEY = 'secureai_user'
 export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? ''
 
 export type AuthUser = {
-  email: string
+  email: string | null
+  username: string | null
   role: string
   token: string
+}
+
+export type StoredUser = {
+  email: string | null
+  username: string | null
+  role: string
 }
 
 type AuthStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -55,7 +62,10 @@ export function setAuth(user: AuthUser, rememberMe = true) {
   secondary.removeItem(USER_KEY)
 
   primary.setItem(TOKEN_KEY, user.token)
-  primary.setItem(USER_KEY, JSON.stringify({ email: user.email, role: user.role }))
+  primary.setItem(
+    USER_KEY,
+    JSON.stringify({ email: user.email, username: user.username ?? null, role: user.role }),
+  )
   localStorage.setItem(REMEMBER_KEY, rememberMe ? '1' : '0')
 }
 
@@ -69,11 +79,16 @@ export function clearAuth() {
   localStorage.removeItem(REMEMBER_KEY)
 }
 
-export function getStoredUser(): { email: string; role: string } | null {
+export function getStoredUser(): StoredUser | null {
   const raw = sessionStorage.getItem(USER_KEY) ?? localStorage.getItem(USER_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as { email: string; role: string }
+    const parsed = JSON.parse(raw) as Partial<StoredUser>
+    return {
+      email: parsed.email ?? null,
+      username: parsed.username ?? null,
+      role: parsed.role ?? 'USER',
+    }
   } catch {
     return null
   }

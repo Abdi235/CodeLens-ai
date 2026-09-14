@@ -1,8 +1,8 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
-import { clearAuth, getStoredUser, getToken, setAuth, type AuthUser } from '../lib/api'
+import { clearAuth, getStoredUser, getToken, setAuth, type AuthUser, type StoredUser } from '../lib/api'
 
 type AuthContextValue = {
-  user: { email: string; role: string } | null
+  user: StoredUser | null
   isAuthenticated: boolean
   loginSuccess: (auth: AuthUser, rememberMe?: boolean) => void
   logout: () => void
@@ -19,7 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(user && getToken()),
       loginSuccess: (auth, rememberMe = true) => {
         setAuth(auth, rememberMe)
-        setUser({ email: auth.email, role: auth.role })
+        setUser({
+          email: auth.email ?? null,
+          username: auth.username ?? null,
+          role: auth.role,
+        })
       },
       logout: () => {
         clearAuth()

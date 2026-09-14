@@ -92,7 +92,7 @@ class OpsAgentIntegrationTest {
     private String registerAndGetToken(String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonMapper.writeValueAsString(new RegisterRequest(email, "Password123!"))))
+                        .content(jsonMapper.writeValueAsString(new RegisterRequest(email, null, "Password123!"))))
                 .andExpect(status().isCreated())
                 .andReturn();
         var tree = jsonMapper.readTree(result.getResponse().getContentAsString());

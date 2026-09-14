@@ -1,9 +1,11 @@
 package com.secureai.dto;
 
-import jakarta.validation.constraints.Email;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
-        @NotBlank @Email String email,
+        @NotBlank
+        @JsonAlias({"email", "username", "identifier"})
+        String login,
         @NotBlank String password
 ) {}

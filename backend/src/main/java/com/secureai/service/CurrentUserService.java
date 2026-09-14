@@ -18,7 +18,7 @@ public class CurrentUserService {
         if (authentication == null || authentication.getName() == null) {
             throw new IllegalArgumentException("Unauthenticated");
         }
-        return userRepository.findByEmail(authentication.getName())
+        return userRepository.findByLogin(authentication.getName())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 }

@@ -13,9 +13,15 @@ export function SettingsPage() {
       <section className="cl-panel max-w-lg rounded-2xl p-6">
         <h2 className="text-lg font-semibold">Profile</h2>
         <dl className="mt-4 space-y-3 text-sm">
+          {user?.username && (
+            <div className="flex justify-between gap-4 border-b border-slate-100 pb-3">
+              <dt className="text-slate-500">Username</dt>
+              <dd className="font-medium">{user.username}</dd>
+            </div>
+          )}
           <div className="flex justify-between gap-4 border-b border-slate-100 pb-3">
             <dt className="text-slate-500">Email</dt>
-            <dd className="font-medium">{user?.email}</dd>
+            <dd className="font-medium">{user?.email || 'Not set'}</dd>
           </div>
           <div className="flex justify-between gap-4 border-b border-slate-100 pb-3">
             <dt className="text-slate-500">Role</dt>

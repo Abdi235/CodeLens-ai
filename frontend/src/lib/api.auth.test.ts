@@ -33,7 +33,7 @@ afterEach(() => {
 
 describe('auth remember me storage', () => {
   it('persists to localStorage when rememberMe is true', () => {
-    setAuth({ email: 'a@example.com', role: 'USER', token: 'tok-local' }, true)
+    setAuth({ email: 'a@example.com', username: null, role: 'USER', token: 'tok-local' }, true)
     expect(localStorage.getItem('codelens_token')).toBe('tok-local')
     expect(sessionStorage.getItem('codelens_token')).toBeNull()
     expect(getToken()).toBe('tok-local')
@@ -42,7 +42,7 @@ describe('auth remember me storage', () => {
   })
 
   it('uses sessionStorage when rememberMe is false', () => {
-    setAuth({ email: 'b@example.com', role: 'USER', token: 'tok-session' }, false)
+    setAuth({ email: 'b@example.com', username: null, role: 'USER', token: 'tok-session' }, false)
     expect(sessionStorage.getItem('codelens_token')).toBe('tok-session')
     expect(localStorage.getItem('codelens_token')).toBeNull()
     expect(getToken()).toBe('tok-session')
@@ -50,7 +50,7 @@ describe('auth remember me storage', () => {
   })
 
   it('clears both stores on logout', () => {
-    setAuth({ email: 'c@example.com', role: 'USER', token: 'tok' }, true)
+    setAuth({ email: 'c@example.com', username: null, role: 'USER', token: 'tok' }, true)
     clearAuth()
     expect(getToken()).toBeNull()
     expect(getStoredUser()).toBeNull()

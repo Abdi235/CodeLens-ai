@@ -6,7 +6,13 @@ import lombok.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "users")
+@Table(
+        name = "users",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_users_email", columnNames = "email"),
+                @UniqueConstraint(name = "uk_users_username", columnNames = "username")
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,8 +24,11 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String email;
+
+    @Column(unique = true, length = 64)
+    private String username;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
@@ -39,5 +48,13 @@ public class User {
         if (role == null) {
             role = Role.USER;
         }
+    }
+
+    /** Principal used in JWT / Spring Security (email preferred, else username). */
+    public String getLoginIdentity() {
+        if (email != null && !email.isBlank()) {
+            return email;
+        }
+        return username;
     }
 }

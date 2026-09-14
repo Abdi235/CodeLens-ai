@@ -47,7 +47,7 @@ export function ProtectedLayout() {
           <div className="flex items-center gap-3 text-sm text-slate-600">
             <span className="hidden items-center gap-2 md:inline-flex">
               <span className="cl-status-dot" aria-hidden />
-              <span className="max-w-[200px] truncate">{user?.email}</span>
+              <span className="max-w-[200px] truncate">{user?.username || user?.email}</span>
             </span>
             <button
               type="button"
