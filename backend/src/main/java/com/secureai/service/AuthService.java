@@ -3,6 +3,7 @@ package com.secureai.service;
 import com.secureai.dto.AuthResponse;
 import com.secureai.dto.LoginRequest;
 import com.secureai.dto.RegisterRequest;
+import com.secureai.model.AuthProvider;
 import com.secureai.model.Role;
 import com.secureai.model.User;
 import com.secureai.repository.UserRepository;
@@ -31,6 +32,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final WelcomeEmailService welcomeEmailService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -65,9 +67,11 @@ public class AuthService {
                 .username(username)
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .role(Role.USER)
+                .authProvider(AuthProvider.LOCAL)
                 .build();
 
         userRepository.save(user);
+        welcomeEmailService.sendWelcomeEmail(user);
         return buildAuthResponse(user);
     }
 

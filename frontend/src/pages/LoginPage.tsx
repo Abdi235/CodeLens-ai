@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { api, getRememberMePreference } from '../lib/api'
+import { API_BASE, api, getRememberMePreference } from '../lib/api'
 
 type AuthResponse = {
   token: string
@@ -10,47 +10,44 @@ type AuthResponse = {
   role: string
 }
 
-type SignupMethod = 'email' | 'username'
-type EmailProvider = {
-  id: string
-  label: string
-  domain: string | null
-}
+type SignupMethod = 'email-service' | 'username' | 'password-email'
+type OAuthProviders = { google: boolean; microsoft: boolean; outlook: boolean; mailEnabled: boolean }
 
 const REMEMBERED_LOGIN_KEY = 'codelens_remembered_email'
-
-const EMAIL_PROVIDERS: EmailProvider[] = [
-  { id: 'gmail', label: 'Gmail', domain: 'gmail.com' },
-  { id: 'outlook', label: 'Outlook', domain: 'outlook.com' },
-  { id: 'yahoo', label: 'Yahoo', domain: 'yahoo.com' },
-  { id: 'icloud', label: 'iCloud', domain: 'icloud.com' },
-  { id: 'other', label: 'Other email', domain: null },
-]
 
 export function LoginPage() {
   const { isAuthenticated, loginSuccess } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [signupMethod, setSignupMethod] = useState<SignupMethod>('email')
-  const [providerId, setProviderId] = useState('gmail')
-  const [emailLocal, setEmailLocal] = useState('')
-  const [emailFull, setEmailFull] = useState(() => localStorage.getItem(REMEMBERED_LOGIN_KEY) ?? '')
+  const [signupMethod, setSignupMethod] = useState<SignupMethod>('email-service')
+  const [providers, setProviders] = useState<OAuthProviders | null>(null)
+  const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [loginId, setLoginId] = useState(() => localStorage.getItem(REMEMBERED_LOGIN_KEY) ?? '')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(() => getRememberMePreference())
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(() => searchParams.get('oauth_error'))
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    api<OAuthProviders>('/api/auth/oauth/providers')
+      .then(setProviders)
+      .catch(() => setProviders({ google: false, microsoft: false, outlook: false, mailEnabled: false }))
+  }, [])
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
-  const selectedProvider = EMAIL_PROVIDERS.find((p) => p.id === providerId) ?? EMAIL_PROVIDERS[0]
-
-  function composedEmail(): string {
-    if (selectedProvider.domain == null) return emailFull.trim()
-    const local = emailLocal.trim()
-    if (!local) return ''
-    return `${local}@${selectedProvider.domain}`
+  function startOAuth(provider: 'google' | 'microsoft') {
+    setError(null)
+    const enabled = provider === 'google' ? providers?.google : providers?.microsoft
+    if (!enabled) {
+      setError(
+        `${provider === 'google' ? 'Gmail / Google' : 'Outlook / Microsoft'} sign-in is not configured yet. Add OAuth client credentials on the API, or use username / email + password.`,
+      )
+      return
+    }
+    window.location.href = `${API_BASE}/api/auth/oauth/${provider}/start`
   }
 
   async function onSubmit(e: FormEvent) {
@@ -67,15 +64,13 @@ export function LoginPage() {
       } else if (signupMethod === 'username') {
         body = { username: username.trim(), password }
         rememberValue = username.trim()
+      } else if (signupMethod === 'password-email') {
+        body = { email: email.trim(), password }
+        rememberValue = email.trim()
       } else {
-        const email = composedEmail()
-        if (!email) {
-          setError('Enter your email address')
-          setLoading(false)
-          return
-        }
-        body = { email, password }
-        rememberValue = email
+        setError('Choose Gmail or Outlook to continue with an email service.')
+        setLoading(false)
+        return
       }
 
       const path = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
@@ -137,110 +132,102 @@ export function LoginPage() {
           </button>
         </div>
 
-        {mode === 'register' && (
+        {(mode === 'register' || mode === 'login') && (
           <div className="mb-5">
-            <p className="mb-2 text-sm font-medium text-slate-700">Create account with</p>
-            <div className="mb-4 grid grid-cols-2 gap-2">
+            <p className="mb-2 text-sm font-medium text-slate-700">
+              {mode === 'register' ? 'Sign up with an email service' : 'Sign in with an email service'}
+            </p>
+            <p className="mb-3 text-xs text-slate-500">
+              Choose your provider — you will authenticate there, then return to the CodeLens dashboard.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() => setSignupMethod('email')}
-                className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                  signupMethod === 'email'
-                    ? 'bg-teal-50 text-teal-900 ring-1 ring-teal-200'
-                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={() => startOAuth('google')}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
               >
-                Email
+                Gmail / Google
+                <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                  {providers?.google ? 'Opens Google account picker' : 'Needs OAuth setup'}
+                </span>
               </button>
               <button
                 type="button"
-                onClick={() => setSignupMethod('username')}
-                className={`rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                  signupMethod === 'username'
-                    ? 'bg-teal-50 text-teal-900 ring-1 ring-teal-200'
-                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={() => startOAuth('microsoft')}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
               >
-                Username
+                Outlook / Microsoft
+                <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                  {providers?.microsoft ? 'Opens Microsoft account picker' : 'Needs OAuth setup'}
+                </span>
               </button>
             </div>
-
-            {signupMethod === 'email' && (
-              <>
-                <p className="mb-2 text-xs text-slate-500">Choose your email service</p>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {EMAIL_PROVIDERS.map((provider) => (
-                    <button
-                      key={provider.id}
-                      type="button"
-                      onClick={() => setProviderId(provider.id)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                        providerId === provider.id
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {provider.label}
-                    </button>
-                  ))}
-                </div>
-
-                {selectedProvider.domain ? (
-                  <label className="mb-4 block text-sm font-medium text-slate-700">
-                    {selectedProvider.label} address
-                    <div className="mt-1.5 flex items-stretch overflow-hidden rounded-xl ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-teal-200">
-                      <input
-                        type="text"
-                        required
-                        value={emailLocal}
-                        onChange={(e) => setEmailLocal(e.target.value.replace(/@.*$/, ''))}
-                        className="cl-input min-w-0 flex-1 rounded-none border-0 px-3.5 py-2.5 focus:shadow-none"
-                        placeholder="you"
-                        autoComplete="username"
-                      />
-                      <span className="flex items-center bg-slate-50 px-3 text-sm text-slate-500">
-                        @{selectedProvider.domain}
-                      </span>
-                    </div>
-                  </label>
-                ) : (
-                  <label className="mb-4 block text-sm font-medium text-slate-700">
-                    Email
-                    <input
-                      type="email"
-                      required
-                      value={emailFull}
-                      onChange={(e) => setEmailFull(e.target.value)}
-                      className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
-                      placeholder="you@company.com"
-                      autoComplete="email"
-                    />
-                  </label>
-                )}
-              </>
-            )}
-
-            {signupMethod === 'username' && (
-              <label className="mb-4 block text-sm font-medium text-slate-700">
-                Username
-                <input
-                  type="text"
-                  required
-                  minLength={3}
-                  maxLength={32}
-                  pattern="[A-Za-z0-9_]{3,32}"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
-                  placeholder="codelens_user"
-                  autoComplete="username"
-                />
-                <span className="mt-1 block text-xs text-slate-500">
-                  3–32 characters. Letters, numbers, and underscores only — no email required.
-                </span>
-              </label>
-            )}
           </div>
+        )}
+
+        <div className="mb-5 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          or
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        {mode === 'register' && (
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setSignupMethod('password-email')}
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                signupMethod === 'password-email'
+                  ? 'bg-teal-50 text-teal-900 ring-1 ring-teal-200'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200'
+              }`}
+            >
+              Email + password
+            </button>
+            <button
+              type="button"
+              onClick={() => setSignupMethod('username')}
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                signupMethod === 'username'
+                  ? 'bg-teal-50 text-teal-900 ring-1 ring-teal-200'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200'
+              }`}
+            >
+              Username
+            </button>
+          </div>
+        )}
+
+        {mode === 'register' && signupMethod === 'password-email' && (
+          <label className="mb-4 block text-sm font-medium text-slate-700">
+            Email
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
+              autoComplete="email"
+            />
+          </label>
+        )}
+
+        {mode === 'register' && signupMethod === 'username' && (
+          <label className="mb-4 block text-sm font-medium text-slate-700">
+            Username
+            <input
+              type="text"
+              required
+              minLength={3}
+              maxLength={32}
+              pattern="[A-Za-z0-9_]{3,32}"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
+              placeholder="codelens_user"
+              autoComplete="username"
+            />
+          </label>
         )}
 
         {mode === 'login' && (
@@ -258,18 +245,20 @@ export function LoginPage() {
           </label>
         )}
 
-        <label className="mb-4 block text-sm font-medium text-slate-700">
-          Password
-          <input
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-          />
-        </label>
+        {(mode === 'login' || signupMethod === 'password-email' || signupMethod === 'username') && (
+          <label className="mb-4 block text-sm font-medium text-slate-700">
+            Password
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            />
+          </label>
+        )}
 
         {mode === 'login' && (
           <label className="mb-5 flex items-start gap-2.5 text-sm text-slate-700">
@@ -292,15 +281,21 @@ export function LoginPage() {
           <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>
         )}
 
-        <button type="submit" disabled={loading} className="cl-btn-primary w-full rounded-xl px-4 py-3">
-          {loading
-            ? 'Connecting to API… (cold start can take up to a minute)'
-            : mode === 'login'
-              ? 'Sign in'
-              : signupMethod === 'username'
-                ? 'Create username account'
-                : 'Create email account'}
-        </button>
+        {(mode === 'login' || signupMethod === 'password-email' || signupMethod === 'username') && (
+          <button type="submit" disabled={loading} className="cl-btn-primary w-full rounded-xl px-4 py-3">
+            {loading
+              ? 'Connecting to API… (cold start can take up to a minute)'
+              : mode === 'login'
+                ? 'Sign in with password'
+                : 'Create account'}
+          </button>
+        )}
+
+        {providers?.mailEnabled === false && mode === 'register' && (
+          <p className="mt-3 text-xs text-slate-500">
+            Welcome emails send when SMTP is configured on the API (`MAIL_*` env vars).
+          </p>
+        )}
       </form>
 
       <p className="cl-fade-up-delay mt-6 text-center text-xs text-slate-500">
