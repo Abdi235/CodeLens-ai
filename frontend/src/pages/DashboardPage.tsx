@@ -99,9 +99,9 @@ export function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">Dashboard</h1>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-1 text-slate-600">
-          Service health (uptime, latency, errors) and security posture across scanned repositories.
+          Live service health and security posture across scanned repositories.
         </p>
       </div>
 
@@ -185,7 +185,7 @@ export function DashboardPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+          <section className="cl-panel rounded-2xl p-5">
             <h3 className="mb-4 text-lg font-semibold">Severity mix</h3>
             {(vulns.data?.length ?? 0) === 0 ? (
               <p className="text-sm text-slate-500">Run a project scan to populate this chart.</p>
@@ -196,10 +196,10 @@ export function DashboardPage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+          <section className="cl-panel rounded-2xl p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Recent projects</h3>
-              <Link to="/projects" className="text-sm font-medium text-teal-700 hover:underline">
+              <Link to="/projects" className="text-sm font-medium text-teal-800 hover:underline">
                 View all
               </Link>
             </div>
@@ -238,16 +238,16 @@ export function DashboardPage() {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/80 px-5 py-4">
+    <div className="rounded-2xl cl-panel px-5 py-4">
       <div className="text-sm text-slate-500">{label}</div>
-      <div className="mt-1 text-3xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">{value}</div>
     </div>
   )
 }
 
 function PipelineStat({ label, value }: { label: string; value: string | number | undefined }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/70 px-4 py-3">
+    <div className="cl-panel rounded-xl px-4 py-3">
       <div className="text-xs text-slate-500">{label}</div>
       <div className="mt-0.5 text-xl font-semibold tabular-nums text-slate-800">{value ?? '—'}</div>
     </div>

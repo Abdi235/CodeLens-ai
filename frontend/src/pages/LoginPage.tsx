@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { api } from '../lib/api'
 
@@ -36,26 +36,29 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
-      <div className="mb-8 text-center">
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-[var(--color-ink)]">
+    <div className="relative mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-12">
+      <div className="cl-fade-up mb-10 text-center">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-teal-800/80">Code intelligence</p>
+        <h1 className="font-[family-name:var(--font-display)] text-5xl font-semibold tracking-tight text-[var(--color-ink)]">
           CodeLens
         </h1>
-        <p className="mt-2 text-slate-600">Distributed code intelligence &amp; security analysis.</p>
+        <p className="mx-auto mt-3 max-w-sm text-slate-600">
+          Distributed analysis, BM25 search, and an autonomous ops agent for live service health.
+        </p>
       </div>
 
-      <form onSubmit={onSubmit} className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-        <div className="mb-5 flex rounded-lg bg-slate-100 p-1 text-sm font-medium">
+      <form onSubmit={onSubmit} className="cl-fade-up-delay cl-panel rounded-2xl p-7">
+        <div className="mb-6 flex rounded-xl bg-slate-100/90 p-1 text-sm font-medium">
           <button
             type="button"
-            className={`flex-1 rounded-md py-2 ${mode === 'login' ? 'bg-white shadow-sm' : 'text-slate-600'}`}
+            className={`flex-1 rounded-lg py-2.5 transition ${mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
             onClick={() => setMode('login')}
           >
             Sign in
           </button>
           <button
             type="button"
-            className={`flex-1 rounded-md py-2 ${mode === 'register' ? 'bg-white shadow-sm' : 'text-slate-600'}`}
+            className={`flex-1 rounded-lg py-2.5 transition ${mode === 'register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
             onClick={() => setMode('register')}
           >
             Register
@@ -69,11 +72,12 @@ export function LoginPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+            className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
+            autoComplete="email"
           />
         </label>
 
-        <label className="mb-4 block text-sm font-medium text-slate-700">
+        <label className="mb-5 block text-sm font-medium text-slate-700">
           Password
           <input
             type="password"
@@ -81,26 +85,26 @@ export function LoginPage() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+            className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
 
-        {error && <p className="mb-3 text-sm text-red-700">{error}</p>}
+        {error && (
+          <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>
+        )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-        >
-          {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+        <button type="submit" disabled={loading} className="cl-btn-primary w-full rounded-xl px-4 py-3">
+          {loading
+            ? 'Connecting to API… (cold start can take up to a minute)'
+            : mode === 'login'
+              ? 'Sign in'
+              : 'Create account'}
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-slate-500">
-        Week 1 foundation — JWT auth + project APIs ready.
-        <Link className="ml-1 text-teal-700 hover:underline" to="/login">
-          Local H2 by default
-        </Link>
+      <p className="cl-fade-up-delay mt-6 text-center text-xs text-slate-500">
+        Free-tier backends may sleep when idle. First sign-in can take longer than usual.
       </p>
     </div>
   )

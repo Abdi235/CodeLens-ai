@@ -40,34 +40,34 @@ export function ProjectsPage() {
         <p className="mt-1 text-slate-600">Register repositories to scan for vulnerabilities.</p>
       </div>
 
-      <form onSubmit={onSubmit} className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-5 sm:grid-cols-[1fr_1fr_auto]">
+      <form onSubmit={onSubmit} className="cl-panel grid gap-3 rounded-2xl p-5 sm:grid-cols-[1fr_1fr_auto]">
         <input
           required
           placeholder="Project name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2"
+          className="cl-input rounded-xl px-3.5 py-2.5"
         />
         <input
           placeholder="Repository URL (optional — empty uses samples/)"
           value={repositoryUrl}
           onChange={(e) => setRepositoryUrl(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2"
+          className="cl-input rounded-xl px-3.5 py-2.5"
         />
-        <button type="submit" disabled={create.isPending} className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800">
+        <button type="submit" disabled={create.isPending} className="cl-btn-primary rounded-xl px-4 py-2.5">
           Add project
         </button>
       </form>
 
       <ul className="space-y-3">
         {(projects.data ?? []).map((p) => (
-          <li key={p.id} className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3">
+          <li key={p.id} className="cl-panel rounded-xl px-4 py-3.5 transition hover:bg-white">
             <Link to={`/project/${p.id}`} className="flex items-center justify-between gap-3">
               <div>
                 <div className="font-semibold">{p.name}</div>
                 <div className="text-sm text-slate-500">{p.repositoryUrl || 'No URL'} · created {new Date(p.createdAt).toLocaleString()}</div>
               </div>
-              <span className="text-sm font-medium text-teal-700">Open →</span>
+              <span className="text-sm font-medium text-teal-800">Open →</span>
             </Link>
           </li>
         ))}

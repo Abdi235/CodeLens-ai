@@ -1,117 +1,121 @@
-# CodeLens — Distributed Code Intelligence & Security Platform
+# CodeLens
 
-CodeLens helps developers submit a GitHub repository and receive **code indexing**, **natural-language code search**, **security vulnerability detection**, **AI explanations**, and **remediation recommendations**.
+**Distributed code intelligence, security analysis, and autonomous ops remediation.**
 
-Built on the SecureAI foundation — extended with BM25 retrieval, AST-aware parsing, CloudAMQP messaging, and a search API.
+CodeLens analyzes GitHub repositories for vulnerabilities, indexes code for BM25 search, streams job status over WebSockets, and runs a tool-using **Ops Agent** against live service health metrics.
+
+[![Live Demo](https://img.shields.io/badge/demo-live-0d9488?style=flat-square)](https://code-lens-ai-ruby.vercel.app)
+[![API Health](https://img.shields.io/badge/api-Render-0f172a?style=flat-square)](https://codelens-api-wym7.onrender.com/actuator/health)
+[![License: MIT](https://img.shields.io/badge/license-MIT-slate?style=flat-square)](LICENSE)
+
+---
+
+## Live demo
+
+| Surface | URL |
+| --- | --- |
+| **Web app** | [https://code-lens-ai-ruby.vercel.app](https://code-lens-ai-ruby.vercel.app) |
+| **API health** | [https://codelens-api-wym7.onrender.com/actuator/health](https://codelens-api-wym7.onrender.com/actuator/health) |
+
+**Try it (2 minutes)**
+
+1. Open the web app → **Register**
+2. **Analysis** → submit `samples` → wait for **Completed** → review findings
+3. **Search** → query `password` on that job
+4. **Ops Agent** → run **Stuck queued job** → confirm **PASS** and tool transcript
+
+> Free-tier hosts may sleep when idle. The first request can take 30–90 seconds.
+
+<p align="center">
+  <img src="docs/demo/dashboard.png" alt="CodeLens dashboard — service health and security posture" width="900" />
+</p>
+
+<p align="center">
+  <img src="docs/demo/ops-agent.png" alt="CodeLens Ops Agent — autonomous remediation transcript" width="900" />
+</p>
+
+<p align="center">
+  <img src="docs/demo/analysis.png" alt="CodeLens repository analysis — completed jobs" width="900" />
+</p>
+
+<p align="center">
+  <img src="docs/demo/login.png" alt="CodeLens sign-in" width="520" />
+</p>
+
+---
+
+## Why CodeLens
+
+| Capability | What you get |
+| --- | --- |
+| **Distributed analysis** | CloudAMQP workers process repos asynchronously (`QUEUED → PROCESSING → COMPLETED`) |
+| **Code search** | BM25 + inverted index over chunked source |
+| **Security findings** | Static rules with context retrieval and optional LLM explanations |
+| **Service monitoring** | Uptime, latency, error rate, dependency health, pipeline counts |
+| **Ops Agent** | Tool-using agent that *chooses* remediations from live metrics (not a fixed LLM slot) |
+
+---
 
 ## Architecture
 
 ```
-React + TypeScript
-       │ REST / WebSocket
-       ▼
-Spring Boot API
-       ├──────────────┐
-       ▼              ▼
- PostgreSQL    CloudAMQP (RabbitMQ)
-                      │
-           ┌──────────┴──────────┐
-           ▼                     ▼
-    Python Worker 1        Python Worker 2
-           └──────────┬──────────┘
-                      ▼
-         Clone → Parse → Index → Retrieve → Scan → LLM → PostgreSQL
+React (Vercel)
+      │  REST + WebSocket
+      ▼
+Spring Boot API (Render)
+      ├────────────────┐
+      ▼                ▼
+ PostgreSQL      CloudAMQP (RabbitMQ)
+                       │
+            ┌──────────┴──────────┐
+            ▼                     ▼
+     Python worker(s)        AI service
+            └──────────┬──────────┘
+                       ▼
+    Clone → Parse → Index → Retrieve → Scan → LLM → Postgres
 ```
 
-| Layer | Technology |
+| Layer | Stack |
 | --- | --- |
-| Web | React 19, TypeScript, Vite, Tailwind |
-| API | Spring Boot 4, JWT, JPA, WebSocket |
-| Queue | **CloudAMQP** (hosted RabbitMQ) — `RABBITMQ_URL` |
-| Workers | Python 3.13, pika, scikit-learn |
-| Database | PostgreSQL |
+| Frontend | React 19, TypeScript, Vite, Tailwind |
+| API | Spring Boot 4, JWT, JPA, WebSocket, Actuator |
+| Queue | CloudAMQP (`RABBITMQ_URL`) |
+| Workers | Python 3.13, pika |
+| Data | PostgreSQL 16 (H2 for local/dev) |
 | LLM | OpenAI (optional) |
 
-**No AWS.** No local RabbitMQ container in the default Docker Compose stack.
+No AWS. Messaging is CloudAMQP; compute is Render + Vercel.
+
+---
 
 ## Features
 
-- Async repository analysis (`POST /api/analysis`)
-- Job lifecycle: `QUEUED` → `PROCESSING` → `COMPLETED` / `FAILED`
-- Multiple independent Python workers (concurrent job processing)
-- Code parsing (Python AST, Java/JS heuristics)
-- BM25 + inverted-index code search (`GET /api/search`)
-- Security static analysis + TF-IDF context retrieval + LLM reasoning
-- WebSocket job status updates
-- Repository metadata API (`GET /api/repositories/{id}`)
-- **Service monitoring** on the Dashboard (`GET /api/metrics/system`): API uptime, request latency (avg/p95), server error rate, dependency health (DB / CloudAMQP / AI), and analysis pipeline counts — separate from vulnerability / AI product analytics (`/api/metrics/ai`)
-- **Ops Agent** (`/ops-agent`, `POST /api/ops-agent/run|simulate`): tool-using autonomous ops agent that observes live health and chooses remediations (`requeue_job`, `wake_worker`, `wake_ai`, `page_human`, `resolve_incident`). Uses OpenAI tool-calling when `OPENAI_API_KEY` is set; otherwise a labeled heuristic fallback for local/CI. Incident simulator + eval metrics (`GET /api/ops-agent/eval`) for measurable remediation success rate.
+- Async repository analysis with WebSocket status updates  
+- Multi-worker consumption (prefetch=1, retries, DLQ, idempotent claim)  
+- AST / heuristic parsing + BM25 retrieval search API  
+- Security scan findings with remediation text  
+- Dashboard **service health** (uptime, p95 latency, error rate, deps, pipeline)  
+- **Ops Agent** with tools: `get_system_health`, `list_stuck_jobs`, `requeue_job`, `wake_worker`, `wake_ai`, `page_human`, `resolve_incident`  
+- Incident simulator + eval metrics (`success rate`, avg steps, resolve time)  
 
-## Information retrieval
+---
 
-| Stage | Implementation |
-| --- | --- |
-| Parse | `parser/source_parser.py` — symbols, imports, line numbers |
-| Chunk | 80-line chunks with file paths |
-| Index | **Inverted index** (hash map + sets) for O(1) term lookup |
-| Rank | **BM25** scoring over candidate documents |
-| Search API | Spring `Bm25SearchEngine` queries persisted `code_index_entries` |
+## Ops Agent (agentic remediation)
 
-### Complexity (documented)
+The Ops Agent observes `/api/metrics/system` and **selects tools** to remediate incidents.
 
-| Operation | Time | Space |
-| --- | --- | --- |
-| Build inverted index | O(n × t) per chunk tokens t | O(V + D) vocabulary + postings |
-| Candidate lookup | O(k) query terms | — |
-| BM25 score | O(c × k) candidates c, query terms k | O(D) documents in memory |
-| Naive scan | O(n × t) every query | O(1) extra |
+- With `OPENAI_API_KEY`: OpenAI **tool-calling** brain (`openai-tool-calling`)  
+- Without a key: labeled `heuristic-fallback` for local/CI demos  
 
-Indexing avoids re-scanning the full repository on every query.
+Endpoints: `POST /api/ops-agent/run`, `POST /api/ops-agent/simulate`, `GET /api/ops-agent/eval`
 
-### Measured benchmark (`samples/`, Windows, Python 3.13)
+---
 
-Run: `cd ai-service && PYTHONPATH=. python scripts/benchmark_search.py`
-
-| Method | Hits | Time (ms) |
-| --- | ---: | ---: |
-| Naive linear scan | 1 | 0.084 |
-| Inverted index candidates | 1 | 0.040 |
-| BM25 ranked search | 1 | 0.086 |
-
-On tiny repos, differences are negligible; indexing benefits grow with file count.
-
-## Distributed processing
-
-1. Spring Boot publishes `AnalysisJobMessage` to `codelens.analysis.queue`
-2. Workers consume via **CloudAMQP** (`RABBITMQ_URL`)
-3. Manual ack, prefetch=1, retries (max 3), DLQ, idempotent `job_id` claim
-4. Status updates via `codelens.job.status.queue` → WebSocket broadcast
-
-### Multiple workers
-
-```bash
-# Docker Compose (set RABBITMQ_URL in .env first)
-docker compose up --build worker worker-2
-
-# Or scale
-docker compose up --scale worker=3
-```
-
-Set distinct `WORKER_ID` per process.
-
-## Setup
-
-### 1. CloudAMQP (required for job queue)
-
-1. Create a free instance at [cloudamqp.com](https://www.cloudamqp.com/)
-2. Copy the AMQP URL (starts with `amqps://`)
-3. Set `RABBITMQ_URL` in `.env` — **never commit this**
-
-### 2. Local with Docker
+## Quick start (local)
 
 ```bash
 cp .env.example .env
-# Edit .env — set RABBITMQ_URL from CloudAMQP
+# Set RABBITMQ_URL from CloudAMQP (required for the queue)
 
 docker compose up --build
 ```
@@ -121,45 +125,66 @@ docker compose up --build
 | Frontend | http://localhost:3000 |
 | API | http://localhost:8080 |
 
-### 3. Environment variables
+### Core environment variables
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `RABBITMQ_URL` | Yes (queue) | CloudAMQP connection URL |
+| `RABBITMQ_URL` | Yes (queue) | CloudAMQP AMQP URL |
 | `DATABASE_URL` | Prod | PostgreSQL connection string |
-| `OPENAI_API_KEY` | No | LLM explanations |
-| `JWT_SECRET` | Yes | API auth |
-| `WORKER_ID` | No | Worker identifier in logs/DB |
+| `JWT_SECRET` | Yes | JWT signing secret |
+| `OPENAI_API_KEY` | No | LLM explanations + Ops Agent tool-calling |
+| `WORKER_URL` | Prod (ops) | Worker public URL for wake checks |
+| `VITE_API_URL` | Vercel | Public API base URL (no trailing slash) |
 
-## API
+---
+
+## API (selected)
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `POST` | `/api/analysis` | Create analysis job |
-| `GET` | `/api/analysis/{jobId}` | Job status |
-| `GET` | `/api/analysis/{jobId}/results` | Security findings |
+| `POST` | `/api/auth/register` | Create account |
+| `POST` | `/api/analysis` | Start analysis job |
+| `GET` | `/api/analysis/{jobId}/results` | Findings |
 | `GET` | `/api/search?jobId=&q=` | BM25 code search |
-| `GET` | `/api/repositories/{id}` | Indexed repository metadata |
+| `GET` | `/api/metrics/system` | Service health snapshot |
+| `POST` | `/api/ops-agent/simulate` | Run incident simulation |
+
+---
 
 ## Testing
 
 ```bash
-cd backend && ./mvnw test          # 12 tests
-cd ai-service && PYTHONPATH=. python -m pytest tests/ -v   # 11 tests
-cd frontend && npm run test && npm run build
+cd backend && ./mvnw test
+cd ai-service && PYTHONPATH=. python -m pytest tests/ -v
+cd frontend && npm test && npm run build
 ```
 
-## Concurrency model
+Search benchmark:
 
-- **Between jobs**: multiple worker processes via RabbitMQ (distributed)
-- **Within a job**: `ThreadPoolExecutor` for I/O-bound file scanning (concurrent, not multi-core parallel)
+```bash
+cd ai-service && PYTHONPATH=. python scripts/benchmark_search.py
+```
+
+---
+
+## Deployment notes
+
+- **Render:** `codelens-api`, `codelens-ai`, `codelens-worker`, `codelens-db`  
+- **Vercel:** frontend root `frontend`, env `VITE_API_URL=https://codelens-api-wym7.onrender.com`  
+- Free tiers sleep when idle; warm with a health check before demos  
+
+See [docs/render-deployment.md](docs/render-deployment.md).
+
+---
 
 ## Known limitations
 
-- Semantic/embedding search not implemented (lexical BM25 only)
-- Java package remains `com.secureai` internally (user-facing brand is CodeLens)
-- Render deployment requires manual `RABBITMQ_URL` + `VITE_API_URL` on Vercel
-- Free-tier CloudAMQP/Render/Postgres have usage limits
+- Lexical BM25 only (no embedding / semantic search yet)  
+- Internal Java package remains `com.secureai`  
+- Free-tier CloudAMQP / Render / Vercel have cold starts and usage limits  
+- True worker autoscaling requires a paid Render plan  
+
+---
 
 ## License
 

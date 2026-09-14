@@ -100,10 +100,10 @@ export function OpsAgentPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold">Ops Agent</h1>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">Ops Agent</h1>
         <p className="mt-1 max-w-3xl text-slate-600">
-          Autonomous operations agent: the model observes live service health and chooses tools
-          (requeue jobs, wake workers, page a human) — not a fixed if/then script.
+          Observe live service health and choose remediations — requeue jobs, wake workers, page a human —
+          then score outcomes with the incident simulator.
         </p>
       </div>
 
@@ -121,21 +121,21 @@ export function OpsAgentPage() {
         <Stat label="Avg resolve ms" value={evalMetrics.data?.avgDurationMs ?? '—'} />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
-        <h2 className="mb-2 text-lg font-semibold">Live health snapshot</h2>
+      <section className="cl-panel rounded-2xl p-5">
+        <h2 className="mb-3 text-lg font-semibold">Live health snapshot</h2>
         {health.data ? (
           <div className="flex flex-wrap gap-2 text-sm">
             {Object.entries(health.data.dependencies).map(([k, v]) => (
               <span
                 key={k}
-                className={`rounded-full px-3 py-1 ring-1 ring-inset ${
+                className={`rounded-lg px-3 py-1.5 ring-1 ring-inset ${
                   v === 'UP' ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-rose-50 text-rose-800 ring-rose-200'
                 }`}
               >
                 {k.toUpperCase()} {v}
               </span>
             ))}
-            <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-600 ring-1 ring-slate-200">
+            <span className="rounded-lg bg-slate-50 px-3 py-1.5 text-slate-600 ring-1 ring-slate-200">
               errors {health.data.errorRatePercent}% · p95 {health.data.p95LatencyMs}ms · queue{' '}
               {health.data.pipeline.queued}/{health.data.pipeline.processing}
             </span>
@@ -146,7 +146,7 @@ export function OpsAgentPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+        <div className="cl-panel rounded-2xl p-5">
           <h2 className="mb-3 text-lg font-semibold">Run agent</h2>
           <label className="mb-3 block text-sm font-medium text-slate-700">
             Goal
@@ -154,7 +154,7 @@ export function OpsAgentPage() {
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
               rows={4}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm"
             />
           </label>
           <label className="mb-4 flex items-center gap-2 text-sm text-slate-700">
@@ -165,7 +165,7 @@ export function OpsAgentPage() {
             type="button"
             disabled={busy || !goal.trim()}
             onClick={() => runAgent.mutate()}
-            className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
+            className="cl-btn-primary rounded-xl px-4 py-2.5 text-sm"
           >
             {runAgent.isPending ? 'Agent running…' : 'Run ops agent'}
           </button>
@@ -174,7 +174,7 @@ export function OpsAgentPage() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+        <div className="cl-panel rounded-2xl p-5">
           <h2 className="mb-2 text-lg font-semibold">Incident simulator</h2>
           <p className="mb-4 text-sm text-slate-500">
             Inject a known incident, let the agent choose tools, and score whether expected remediations ran.
@@ -186,7 +186,7 @@ export function OpsAgentPage() {
                 type="button"
                 disabled={busy}
                 onClick={() => simulate.mutate(s.id)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
               >
                 {simulate.isPending ? 'Running…' : s.label}
               </button>
@@ -200,14 +200,14 @@ export function OpsAgentPage() {
 
       {active && <Transcript run={active} />}
 
-      <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+      <section className="cl-panel rounded-2xl p-5">
         <h2 className="mb-3 text-lg font-semibold">Recent runs</h2>
         <ul className="divide-y divide-slate-100 text-sm">
           {(runs.data ?? []).map((r) => (
             <li key={r.runId}>
               <button
                 type="button"
-                className="flex w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50"
+                className="flex w-full items-center justify-between gap-3 rounded-lg py-3 text-left transition hover:bg-slate-50"
                 onClick={() => setActive(r)}
               >
                 <span>
@@ -231,7 +231,7 @@ export function OpsAgentPage() {
 
 function Transcript({ run }: { run: OpsRun }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+    <section className="cl-panel rounded-2xl p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Agent transcript</h2>
         <div className="text-sm text-slate-600">
@@ -272,9 +272,9 @@ function Transcript({ run }: { run: OpsRun }) {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/80 px-5 py-4">
+    <div className="cl-panel rounded-2xl px-5 py-4">
       <div className="text-sm text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</div>
     </div>
   )
 }

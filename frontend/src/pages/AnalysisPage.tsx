@@ -87,19 +87,15 @@ export function AnalysisPage() {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/80 p-5">
+      <form onSubmit={onSubmit} className="cl-panel flex flex-wrap gap-3 rounded-2xl p-5">
         <input
           required
           value={repository}
           onChange={(e) => setRepository(e.target.value)}
           placeholder="Repository URL or 'samples'"
-          className="min-w-[280px] flex-1 rounded-lg border border-slate-300 px-3 py-2"
+          className="cl-input min-w-[280px] flex-1 rounded-xl px-3.5 py-2.5"
         />
-        <button
-          type="submit"
-          disabled={create.isPending}
-          className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-        >
+        <button type="submit" disabled={create.isPending} className="cl-btn-primary rounded-xl px-5 py-2.5">
           {create.isPending ? 'Submitting…' : 'Analyze repository'}
         </button>
       </form>
@@ -107,7 +103,7 @@ export function AnalysisPage() {
       {create.error && <p className="text-sm text-red-700">{(create.error as Error).message}</p>}
 
       {activeJobId && (
-        <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+        <section className="cl-panel rounded-2xl p-5">
           <h2 className="text-lg font-semibold">Active job</h2>
           <p className="mt-1 font-mono text-sm text-slate-600">{activeJobId}</p>
           <p className="mt-2">
@@ -125,8 +121,15 @@ export function AnalysisPage() {
       {results.data && results.data.status === 'COMPLETED' && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Findings ({results.data.findingCount ?? 0})</h2>
+          {(results.data.findingCount ?? 0) === 0 && (
+            <p className="cl-panel rounded-2xl p-5 text-sm text-slate-600">
+              Completed with 0 findings — the pipeline ran successfully; no rule matched in this repository.
+              Zero findings does not mean the job failed. Try <code className="rounded bg-slate-100 px-1">samples</code> to
+              see example vulnerabilities.
+            </p>
+          )}
           {results.data.findings.map((f) => (
-            <article key={f.id} className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+            <article key={f.id} className="cl-panel rounded-2xl p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <SeverityBadge severity={f.severity} />
                 <h3 className="font-semibold">{f.vulnerabilityType}</h3>
@@ -157,13 +160,21 @@ export function AnalysisPage() {
         </section>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+      <section className="cl-panel rounded-2xl p-5">
         <h2 className="mb-3 text-lg font-semibold">Recent jobs</h2>
         <ul className="space-y-2 text-sm">
           {(jobs.data ?? []).map((j) => (
-            <li key={j.jobId} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-2 last:border-0">
-              <button type="button" className="text-left hover:underline" onClick={() => setActiveJobId(j.jobId)}>
-                <span className="font-mono text-xs">{j.jobId.slice(0, 8)}…</span> — {j.repository}
+            <li
+              key={j.jobId}
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-2.5 last:border-0"
+            >
+              <button
+                type="button"
+                className="rounded-lg px-2 py-1 text-left hover:bg-slate-50"
+                onClick={() => setActiveJobId(j.jobId)}
+              >
+                <span className="font-mono text-xs text-slate-500">{j.jobId.slice(0, 8)}…</span>
+                <span className="ml-2 font-medium text-slate-800">{j.repository}</span>
               </button>
               <StatusBadge status={j.status} />
             </li>
@@ -171,7 +182,11 @@ export function AnalysisPage() {
           {(jobs.data?.length ?? 0) === 0 && <li className="text-slate-500">No analysis jobs yet.</li>}
         </ul>
         <p className="mt-3 text-xs text-slate-500">
-          Legacy project scans still available on <Link to="/projects" className="text-teal-700 hover:underline">Projects</Link>.
+          Legacy project scans still available on{' '}
+          <Link to="/projects" className="text-teal-700 hover:underline">
+            Projects
+          </Link>
+          .
         </p>
       </section>
     </div>
@@ -180,21 +195,29 @@ export function AnalysisPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    QUEUED: 'bg-slate-100 text-slate-700',
-    PROCESSING: 'bg-blue-100 text-blue-800',
-    COMPLETED: 'bg-green-100 text-green-800',
-    FAILED: 'bg-red-100 text-red-800',
+    QUEUED: 'bg-slate-100 text-slate-700 ring-slate-200',
+    PROCESSING: 'bg-sky-50 text-sky-900 ring-sky-200',
+    COMPLETED: 'bg-emerald-50 text-emerald-900 ring-emerald-200',
+    FAILED: 'bg-rose-50 text-rose-900 ring-rose-200',
   }
-  return <span className={`rounded px-2 py-0.5 text-xs font-semibold ${colors[status] ?? colors.QUEUED}`}>{statusLabel(status)}</span>
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${colors[status] ?? colors.QUEUED}`}>
+      {statusLabel(status)}
+    </span>
+  )
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
   const colors: Record<string, string> = {
-    CRITICAL: 'bg-red-100 text-red-800',
-    HIGH: 'bg-orange-100 text-orange-800',
-    MEDIUM: 'bg-amber-100 text-amber-900',
-    LOW: 'bg-blue-100 text-blue-800',
-    INFO: 'bg-slate-100 text-slate-700',
+    CRITICAL: 'bg-red-100 text-red-800 ring-red-200',
+    HIGH: 'bg-orange-100 text-orange-800 ring-orange-200',
+    MEDIUM: 'bg-amber-100 text-amber-900 ring-amber-200',
+    LOW: 'bg-blue-100 text-blue-800 ring-blue-200',
+    INFO: 'bg-slate-100 text-slate-700 ring-slate-200',
   }
-  return <span className={`rounded px-2 py-0.5 text-xs font-semibold ${colors[severity] ?? colors.INFO}`}>{severity}</span>
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${colors[severity] ?? colors.INFO}`}>
+      {severity}
+    </span>
+  )
 }

@@ -52,13 +52,13 @@ export function SearchPage() {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-3 rounded-2xl border border-slate-200 bg-white/80 p-5">
+      <form onSubmit={onSubmit} className="cl-panel space-y-3 rounded-2xl p-5">
         <label className="block text-sm font-medium text-slate-700">
           Analysis job
           <select
             value={jobId}
             onChange={(e) => setJobId(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
             required
           >
             <option value="">Select a completed job…</option>
@@ -77,16 +77,16 @@ export function SearchPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Where is authentication handled?"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            className="cl-input mt-1.5 w-full rounded-xl px-3.5 py-2.5"
             required
           />
         </label>
-        <button type="submit" className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800">
+        <button type="submit" className="cl-btn-primary rounded-xl px-4 py-2.5">
           Search code
         </button>
       </form>
 
-      {search.error && <p className="text-sm text-red-700">{(search.error as Error).message}</p>}
+      {search.error && <p className="text-sm text-rose-700">{(search.error as Error).message}</p>}
 
       {search.data && (
         <section className="space-y-3">
@@ -94,12 +94,12 @@ export function SearchPage() {
             {search.data.resultCount} result{search.data.resultCount === 1 ? '' : 's'} for “{search.data.query}”
           </h2>
           {search.data.results.map((r, idx) => (
-            <article key={`${r.filePath}-${idx}`} className="rounded-2xl border border-slate-200 bg-white/80 p-5">
+            <article key={`${r.filePath}-${idx}`} className="cl-panel rounded-2xl p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-mono text-sm text-slate-700">
                   {r.filePath}:{r.startLine}-{r.endLine}
                 </p>
-                <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-800">
+                <span className="rounded-lg bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-900">
                   score {r.score}
                 </span>
               </div>
