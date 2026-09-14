@@ -104,10 +104,21 @@ No AWS. Messaging is CloudAMQP; compute is Render + Vercel.
 
 The Ops Agent observes `/api/metrics/system` and **selects tools** to remediate incidents.
 
-- With `OPENAI_API_KEY`: OpenAI **tool-calling** brain (`openai-tool-calling`)  
-- Without a key: labeled `heuristic-fallback` for local/CI demos  
+- With `GEMINI_API_KEY` (free Google AI Studio): **`gemini-tool-calling`** brain  
+- Optional `OPENAI_API_KEY`: `openai-tool-calling`  
+- Without either key: labeled `heuristic-fallback` for local/CI demos  
 
 Endpoints: `POST /api/ops-agent/run`, `POST /api/ops-agent/simulate`, `GET /api/ops-agent/eval`
+
+### Gemini setup (free)
+
+1. Create a key at [Google AI Studio](https://aistudio.google.com/apikey)  
+2. On Render `codelens-api` set:
+   ```
+   GEMINI_API_KEY=...
+   OPS_AGENT_PREFER_GEMINI=true
+   ```
+3. Redeploy API → Ops Agent runs should show brain `gemini-tool-calling`
 
 ---
 

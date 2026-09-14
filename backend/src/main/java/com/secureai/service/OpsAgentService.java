@@ -33,6 +33,7 @@ public class OpsAgentService {
             """;
 
     private final OpsToolRegistry toolRegistry;
+    private final GeminiOpsAgentBrain geminiOpsAgentBrain;
     private final OpenAiOpsAgentBrain openAiOpsAgentBrain;
     private final HeuristicOpsAgentBrain heuristicOpsAgentBrain;
     private final OpsAgentRunRepository runRepository;
@@ -44,7 +45,10 @@ public class OpsAgentService {
     @Value("${secureai.ops-agent.max-steps:8}")
     private int maxSteps;
 
-    @Value("${secureai.ops-agent.prefer-openai:true}")
+    @Value("${secureai.ops-agent.prefer-gemini:true}")
+    private boolean preferGemini;
+
+    @Value("${secureai.ops-agent.prefer-openai:false}")
     private boolean preferOpenai;
 
     @Transactional
@@ -212,11 +216,12 @@ public class OpsAgentService {
                             .toolArgsJson(tc.argumentsJson())
                             .toolResultJson(resultJson)
                             .build());
-                    messages.add(Map.of(
-                            "role", "tool",
-                            "tool_call_id", tc.id(),
-                            "content", resultJson
-                    ));
+                    Map<String, Object> toolMsg = new LinkedHashMap<>();
+                    toolMsg.put("role", "tool");
+                    toolMsg.put("tool_call_id", tc.id());
+                    toolMsg.put("name", tc.name());
+                    toolMsg.put("content", resultJson);
+                    messages.add(toolMsg);
                 }
 
                 if (toolRegistry.isResolved()) {
@@ -246,6 +251,10 @@ public class OpsAgentService {
     }
 
     private OpsAgentBrain selectBrain() {
+        // Prefer free Gemini tool-calling when configured; OpenAI optional; heuristic last.
+        if (preferGemini && geminiOpsAgentBrain.isConfigured()) {
+            return geminiOpsAgentBrain;
+        }
         if (preferOpenai && openAiOpsAgentBrain.isConfigured()) {
             return openAiOpsAgentBrain;
         }
