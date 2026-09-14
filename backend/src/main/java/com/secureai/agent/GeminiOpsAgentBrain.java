@@ -33,7 +33,7 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
     @Value("${secureai.ops-agent.gemini-api-key:}")
     private String apiKeyFromConfig;
 
-    @Value("${secureai.ops-agent.gemini-model:gemini-2.0-flash}")
+    @Value("${secureai.ops-agent.gemini-model:gemini-2.5-flash}")
     private String model;
 
     @Override
