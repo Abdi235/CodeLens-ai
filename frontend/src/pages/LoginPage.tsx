@@ -1,16 +1,19 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { api } from '../lib/api'
+import { api, getRememberMePreference } from '../lib/api'
 
 type AuthResponse = { token: string; email: string; role: string }
+
+const REMEMBERED_EMAIL_KEY = 'codelens_remembered_email'
 
 export function LoginPage() {
   const { isAuthenticated, loginSuccess } = useAuth()
   const navigate = useNavigate()
   const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem(REMEMBERED_EMAIL_KEY) ?? '')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(() => getRememberMePreference())
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -26,7 +29,12 @@ export function LoginPage() {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       })
-      loginSuccess(data)
+      loginSuccess(data, rememberMe)
+      if (rememberMe) {
+        localStorage.setItem(REMEMBERED_EMAIL_KEY, email)
+      } else {
+        localStorage.removeItem(REMEMBERED_EMAIL_KEY)
+      }
       navigate('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed')
@@ -77,7 +85,7 @@ export function LoginPage() {
           />
         </label>
 
-        <label className="mb-5 block text-sm font-medium text-slate-700">
+        <label className="mb-4 block text-sm font-medium text-slate-700">
           Password
           <input
             type="password"
@@ -89,6 +97,23 @@ export function LoginPage() {
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
+
+        {mode === 'login' && (
+          <label className="mb-5 flex items-start gap-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+            />
+            <span>
+              <span className="font-medium">Remember me</span>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                Stay signed in on this device. Uncheck to clear the session when you close the browser.
+              </span>
+            </span>
+          </label>
+        )}
 
         {error && (
           <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>

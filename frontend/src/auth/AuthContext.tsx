@@ -4,7 +4,7 @@ import { clearAuth, getStoredUser, getToken, setAuth, type AuthUser } from '../l
 type AuthContextValue = {
   user: { email: string; role: string } | null
   isAuthenticated: boolean
-  loginSuccess: (auth: AuthUser) => void
+  loginSuccess: (auth: AuthUser, rememberMe?: boolean) => void
   logout: () => void
 }
 
@@ -17,8 +17,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isAuthenticated: Boolean(user && getToken()),
-      loginSuccess: (auth) => {
-        setAuth(auth)
+      loginSuccess: (auth, rememberMe = true) => {
+        setAuth(auth, rememberMe)
         setUser({ email: auth.email, role: auth.role })
       },
       logout: () => {
