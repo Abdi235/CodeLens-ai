@@ -12,8 +12,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -25,6 +27,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class GeminiOpsAgentBrain implements OpsAgentBrain {
 
+    /**
+     * Free-tier fallbacks when the primary model is 404/unavailable or out of daily quota.
+     * Order matters: prefer higher-quota Flash variants before preview models.
+     */
+    private static final List<String> FALLBACK_MODELS = List.of(
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-flash",
+            "gemini-flash-latest",
+            "gemini-3.6-flash"
+    );
+
     private final JsonMapper objectMapper;
 
     @Value("${GEMINI_API_KEY:}")
@@ -33,8 +46,11 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
     @Value("${secureai.ops-agent.gemini-api-key:}")
     private String apiKeyFromConfig;
 
-    @Value("${secureai.ops-agent.gemini-model:gemini-3.6-flash}")
+    @Value("${secureai.ops-agent.gemini-model:gemini-2.5-flash-lite}")
     private String model;
+
+    /** Sticky model that last succeeded in this process (avoids burned daily-quota models). */
+    private volatile String preferredModel;
 
     @Override
     public String type() {
@@ -51,6 +67,32 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
             return apiKeyFromConfig;
         }
         return apiKeyFromEnv;
+    }
+
+    private List<String> candidateModels() {
+        Set<String> ordered = new LinkedHashSet<>();
+        if (preferredModel != null && !preferredModel.isBlank()) {
+            ordered.add(preferredModel);
+        }
+        if (model != null && !model.isBlank()) {
+            ordered.add(model.trim());
+        }
+        ordered.addAll(FALLBACK_MODELS);
+        return List.copyOf(ordered);
+    }
+
+    private static boolean isTransientModelFailure(String message) {
+        if (message == null) {
+            return false;
+        }
+        String m = message.toLowerCase();
+        return m.contains("404")
+                || m.contains("not found")
+                || m.contains("429")
+                || m.contains("resource_exhausted")
+                || m.contains("quota")
+                || m.contains("high demand")
+                || m.contains("unavailable");
     }
 
     @Override
@@ -82,11 +124,6 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
         ObjectNode toolConfig = body.putObject("toolConfig");
         toolConfig.putObject("functionCallingConfig").put("mode", "AUTO");
 
-        String uri = "https://generativelanguage.googleapis.com/v1beta/models/"
-                + model
-                + ":generateContent?key="
-                + apiKey;
-
         final String jsonBody;
         try {
             jsonBody = objectMapper.writeValueAsString(body);
@@ -94,21 +131,39 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
             throw new IllegalStateException("Failed to serialize Gemini request", ex);
         }
 
-        Map<?, ?> response;
-        try {
-            response = RestClient.create()
-                    .post()
-                    .uri(uri)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(jsonBody)
-                    .retrieve()
-                    .body(Map.class);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Gemini request failed: " + ex.getMessage(), ex);
+        Map<?, ?> response = null;
+        String usedModel = null;
+        List<String> failures = new ArrayList<>();
+        for (String candidate : candidateModels()) {
+            String uri = "https://generativelanguage.googleapis.com/v1beta/models/"
+                    + candidate
+                    + ":generateContent?key="
+                    + apiKey;
+            try {
+                response = RestClient.create()
+                        .post()
+                        .uri(uri)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(jsonBody)
+                        .retrieve()
+                        .body(Map.class);
+                usedModel = candidate;
+                preferredModel = candidate;
+                if (!candidate.equals(model)) {
+                    log.info("Gemini ops-agent using fallback model {}", candidate);
+                }
+                break;
+            } catch (Exception ex) {
+                String msg = ex.getMessage() == null ? ex.toString() : ex.getMessage();
+                failures.add(candidate + ": " + msg);
+                if (!isTransientModelFailure(msg)) {
+                    throw new IllegalStateException("Gemini request failed: " + msg, ex);
+                }
+                log.warn("Gemini model {} failed ({}), trying next fallback", candidate, msg);
+            }
         }
-
         if (response == null) {
-            throw new IllegalStateException("Empty Gemini response");
+            throw new IllegalStateException("Gemini request failed for all models: " + String.join(" | ", failures));
         }
 
         JsonNode root = objectMapper.valueToTree(response);
@@ -116,7 +171,9 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
         if (!parts.isArray() || parts.isEmpty()) {
             String err = root.path("error").path("message").asText(null);
             throw new IllegalStateException(
-                    err != null ? "Gemini error: " + err : "Gemini response missing candidates/parts");
+                    err != null
+                            ? "Gemini error (" + usedModel + "): " + err
+                            : "Gemini response missing candidates/parts (" + usedModel + ")");
         }
 
         StringBuilder text = new StringBuilder();
