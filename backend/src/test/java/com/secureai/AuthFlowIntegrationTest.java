@@ -1,5 +1,7 @@
 package com.secureai;
 
+import com.secureai.repository.AnalysisJobRepository;
+import com.secureai.repository.OpsAgentRunRepository;
 import com.secureai.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,10 +29,19 @@ class AuthFlowIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private OpsAgentRunRepository opsAgentRunRepository;
+
+    @Autowired
+    private AnalysisJobRepository analysisJobRepository;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
+        // Child rows reference users; clear them first to avoid FK violations across tests.
+        opsAgentRunRepository.deleteAll();
+        analysisJobRepository.deleteAll();
         userRepository.deleteAll();
         mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())

@@ -180,11 +180,17 @@ public class OpsAgentService {
                 // Record assistant tool call message (OpenAI transcript shape)
                 List<Map<String, Object>> toolCallPayloads = new ArrayList<>();
                 for (OpsAgentBrain.ToolCall tc : decision.toolCalls()) {
-                    toolCallPayloads.add(Map.of(
-                            "id", tc.id(),
-                            "type", "function",
-                            "function", Map.of("name", tc.name(), "arguments", tc.argumentsJson())
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("id", tc.id());
+                    payload.put("type", "function");
+                    payload.put("function", Map.of(
+                            "name", tc.name(),
+                            "arguments", tc.argumentsJson() == null ? "{}" : tc.argumentsJson()
                     ));
+                    if (tc.thoughtSignature() != null && !tc.thoughtSignature().isBlank()) {
+                        payload.put("thoughtSignature", tc.thoughtSignature());
+                    }
+                    toolCallPayloads.add(payload);
                     run.addStep(OpsAgentStep.builder()
                             .stepIndex(stepIndex++)
                             .role("assistant")

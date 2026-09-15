@@ -135,7 +135,18 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
                 String argsJson = argsNode.isMissingNode() || argsNode.isNull()
                         ? "{}"
                         : argsNode.toString();
-                toolCalls.add(new ToolCall("call_" + UUID.randomUUID(), name, argsJson));
+                // Gemini 3.x requires echoing thoughtSignature on subsequent turns
+                String thoughtSignature = null;
+                if (part.hasNonNull("thoughtSignature")) {
+                    thoughtSignature = part.path("thoughtSignature").asText(null);
+                } else if (part.hasNonNull("thought_signature")) {
+                    thoughtSignature = part.path("thought_signature").asText(null);
+                } else if (fc.hasNonNull("thoughtSignature")) {
+                    thoughtSignature = fc.path("thoughtSignature").asText(null);
+                } else if (fc.hasNonNull("thought_signature")) {
+                    thoughtSignature = fc.path("thought_signature").asText(null);
+                }
+                toolCalls.add(new ToolCall("call_" + UUID.randomUUID(), name, argsJson, thoughtSignature));
             }
         }
 
@@ -254,6 +265,14 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
                             argsNode = objectMapper.createObjectNode();
                         }
                         functionCall.set("args", argsNode);
+                        Object thought = tc.get("thoughtSignature");
+                        if (thought == null) {
+                            thought = tc.get("thought_signature");
+                        }
+                        if (thought != null && !String.valueOf(thought).isBlank()) {
+                            // Required by Gemini 3.x when replaying prior functionCall parts
+                            part.put("thoughtSignature", String.valueOf(thought));
+                        }
                         wrote = true;
                     }
                 }

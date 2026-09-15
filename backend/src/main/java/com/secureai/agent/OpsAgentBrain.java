@@ -12,7 +12,11 @@ public interface OpsAgentBrain {
      */
     Decision decide(List<Map<String, Object>> messages, List<OpsTool> tools);
 
-    record ToolCall(String id, String name, String argumentsJson) {}
+    record ToolCall(String id, String name, String argumentsJson, String thoughtSignature) {
+        public ToolCall(String id, String name, String argumentsJson) {
+            this(id, name, argumentsJson, null);
+        }
+    }
 
     record Decision(String assistantContent, List<ToolCall> toolCalls) {
         public boolean hasToolCalls() {
