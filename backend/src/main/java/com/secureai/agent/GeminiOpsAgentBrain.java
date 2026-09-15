@@ -32,10 +32,10 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
      * Order matters: prefer higher-quota Flash variants before preview models.
      */
     private static final List<String> FALLBACK_MODELS = List.of(
-            "gemini-2.5-flash-lite",
-            "gemini-2.5-flash",
-            "gemini-flash-latest",
-            "gemini-3.6-flash"
+            // AI Studio steers new keys to Gemini 3.x; 2.5-* returns 404 for new users.
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
+            "gemini-flash-latest"
     );
 
     private final JsonMapper objectMapper;
@@ -46,7 +46,7 @@ public class GeminiOpsAgentBrain implements OpsAgentBrain {
     @Value("${secureai.ops-agent.gemini-api-key:}")
     private String apiKeyFromConfig;
 
-    @Value("${secureai.ops-agent.gemini-model:gemini-2.5-flash-lite}")
+    @Value("${secureai.ops-agent.gemini-model:gemini-3.5-flash-lite}")
     private String model;
 
     /** Sticky model that last succeeded in this process (avoids burned daily-quota models). */
