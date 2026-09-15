@@ -216,7 +216,25 @@ public class ScanService {
                 vuln.getDescription(),
                 vuln.getRecommendation(),
                 vuln.getAiExplanation(),
-                vuln.getSuggestedFix()
+                vuln.getSuggestedFix(),
+                vuln.getTriageStatus() == null ? TriageStatus.OPEN : vuln.getTriageStatus(),
+                vuln.getTriageNote()
         );
+    }
+
+    @Transactional
+    public VulnerabilityResponse updateTriage(Long vulnerabilityId, TriageStatus status, String note) {
+        User user = currentUserService.requireCurrentUser();
+        Vulnerability vuln = vulnerabilityRepository.findById(vulnerabilityId)
+                .orElseThrow(() -> new IllegalArgumentException("Vulnerability not found"));
+        if (!vuln.getScan().getProject().getUser().getId().equals(user.getId())) {
+            throw new IllegalArgumentException("Vulnerability not found");
+        }
+        vuln.setTriageStatus(status == null ? TriageStatus.OPEN : status);
+        if (note != null) {
+            vuln.setTriageNote(note);
+        }
+        vulnerabilityRepository.save(vuln);
+        return toVulnerabilityResponse(vuln);
     }
 }

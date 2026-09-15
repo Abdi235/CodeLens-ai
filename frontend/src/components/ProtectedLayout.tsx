@@ -6,6 +6,7 @@ const links = [
   { to: '/analysis', label: 'Analysis' },
   { to: '/search', label: 'Search' },
   { to: '/ops-agent', label: 'Ops Agent' },
+  { to: '/findings-agent', label: 'Findings Agent' },
   { to: '/projects', label: 'Projects' },
   { to: '/vulnerabilities', label: 'Vulnerabilities' },
   { to: '/settings', label: 'Settings' },

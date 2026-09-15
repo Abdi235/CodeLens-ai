@@ -2,7 +2,7 @@
 
 **Distributed code intelligence, security analysis, and autonomous ops remediation.**
 
-CodeLens analyzes GitHub repositories for vulnerabilities, indexes code for BM25 search, streams job status over WebSockets, and runs a tool-using **Ops Agent** against live service health metrics.
+CodeLens analyzes GitHub repositories for vulnerabilities, indexes code for BM25 search, streams job status over WebSockets, and runs tool-using agents for **ops remediation** and **findings triage**.
 
 [![Live Demo](https://img.shields.io/badge/demo-live-0d9488?style=flat-square)](https://code-lens-ai-ruby.vercel.app)
 [![API Health](https://img.shields.io/badge/api-Render-0f172a?style=flat-square)](https://codelens-api-wym7.onrender.com/actuator/health)
@@ -121,6 +121,21 @@ Endpoints: `POST /api/ops-agent/run`, `POST /api/ops-agent/simulate`, `GET /api/
 3. Redeploy API → Ops Agent runs should show brain `gemini-tool-calling`
 
 ---
+
+## Findings Agent (agentic triage)
+
+The Findings Agent reviews open vulnerabilities and **selects tools** to triage them:
+
+`list_findings` → `get_finding` → `search_code` → `propose_fix` → `mark_triaged` → `finish_triage`
+
+Simulate scenarios: `critical_open_finding` | `false_positive` | `clean_queue`
+
+```bash
+curl -X POST "$API/api/findings-agent/simulate" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"scenario":"critical_open_finding","dryRun":true}'
+```
+
 
 ## Quick start (local)
 
